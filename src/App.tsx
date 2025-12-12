@@ -1,4 +1,9 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import {
+  createBrowserRouter,
+  RouterProvider,
+  Outlet,
+  ScrollRestoration,
+} from 'react-router-dom'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -13,30 +18,48 @@ import AreaCliente from './pages/AreaCliente'
 import Admin from './pages/Admin'
 import NotFound from './pages/NotFound'
 
-const App = () => (
-  <BrowserRouter
-    future={{ v7_startTransition: false, v7_relativeSplatPath: false }}
-  >
-    <TooltipProvider>
+const RootWrapper = () => {
+  return (
+    <>
+      <ScrollRestoration />
       <Toaster />
       <Sonner />
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<Index />} />
-          <Route path="/planos" element={<Planos />} />
-          <Route path="/projetos" element={<Projetos />} />
-          <Route path="/pedido" element={<Pedido />} />
-          <Route path="/pagamento" element={<Pagamento />} />
-          <Route path="/area-cliente" element={<AreaCliente />} />
-        </Route>
+      <Outlet />
+    </>
+  )
+}
 
-        {/* Admin route without main layout for simplicity or use layout if preferred */}
-        <Route path="/admin" element={<Admin />} />
+const router = createBrowserRouter([
+  {
+    element: <RootWrapper />,
+    children: [
+      {
+        element: <Layout />,
+        children: [
+          { path: '/', element: <Index /> },
+          { path: '/planos', element: <Planos /> },
+          { path: '/projetos', element: <Projetos /> },
+          { path: '/pedido', element: <Pedido /> },
+          { path: '/pagamento', element: <Pagamento /> },
+          { path: '/area-cliente', element: <AreaCliente /> },
+        ],
+      },
+      {
+        path: '/admin',
+        element: <Admin />,
+      },
+      {
+        path: '*',
+        element: <NotFound />,
+      },
+    ],
+  },
+])
 
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </TooltipProvider>
-  </BrowserRouter>
+const App = () => (
+  <TooltipProvider>
+    <RouterProvider router={router} />
+  </TooltipProvider>
 )
 
 export default App
