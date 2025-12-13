@@ -1,22 +1,14 @@
-import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Menu, Trees } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
+import { useScroll } from '@/hooks/use-scroll'
 
 export function Header() {
-  const [scrolled, setScrolled] = useState(false)
+  const scrolled = useScroll(50)
   const location = useLocation()
   const isHome = location.pathname === '/'
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 50)
-    }
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
 
   const navLinks = [
     { name: 'Início', path: '/' },

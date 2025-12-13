@@ -23,7 +23,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { useToast } from '@/hooks/use-toast'
-import { useStore } from '@/lib/store'
+import { useStore, type Order } from '@/lib/store'
 
 const formSchema = z.object({
   nome: z.string().min(3, 'Nome muito curto'),
@@ -88,8 +88,8 @@ export default function Pedido() {
 
     // Simulate image processing (convert to base64 placeholder or use dummy url)
     const photoUrls = photos.map(
-      () =>
-        `https://img.usecurling.com/p/800/600?q=garden&random=${Math.random()}`,
+      (_, index) =>
+        `https://img.usecurling.com/p/800/600?q=garden%20${index + 1}`,
     )
 
     // Create Order
@@ -101,7 +101,7 @@ export default function Pedido() {
       dimensions: values.medidas,
       preferences: values.preferencias,
       notes: values.observacoes,
-      plan: selectedPlan as any,
+      plan: selectedPlan as Order['plan'],
       photos: photoUrls,
     })
 
