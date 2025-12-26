@@ -1,15 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  Eye,
-  Upload,
-  Trash,
-  Edit,
-  Plus,
-  Save,
-  LayoutDashboard,
-  LogOut,
-} from 'lucide-react'
+import { Eye, Upload, Trash, Edit, Plus, Save, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -46,6 +37,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { useStore, Order, OrderStatus, FeaturedProject } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
+import { LOGO_URL } from '@/lib/constants'
 
 export default function Admin() {
   const navigate = useNavigate()
@@ -172,9 +164,15 @@ export default function Admin() {
       {/* Header */}
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <LayoutDashboard className="h-5 w-5 text-primary" />
-            <span className="font-bold text-lg">Floresta Backoffice</span>
+          <div className="flex items-center gap-3">
+            <img
+              src={LOGO_URL}
+              alt="Viveiro Floresta Logo"
+              className="h-10 w-auto"
+            />
+            <span className="font-bold text-lg text-gray-500 border-l pl-3">
+              Backoffice
+            </span>
           </div>
           <Button variant="outline" onClick={handleLogout} className="gap-2">
             <LogOut className="h-4 w-4" /> Sair

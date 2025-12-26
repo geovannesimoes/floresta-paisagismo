@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Trees, Lock, Loader2 } from 'lucide-react'
+import { Lock, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,6 +13,7 @@ import {
   CardFooter,
 } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
+import { LOGO_URL } from '@/lib/constants'
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('')
@@ -56,12 +57,11 @@ export default function AdminLogin() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
         <div className="flex justify-center mb-8">
-          <div className="flex items-center gap-2 text-primary">
-            <Trees className="h-10 w-10" />
-            <span className="font-heading font-bold text-2xl text-foreground">
-              Floresta Admin
-            </span>
-          </div>
+          <img
+            src={LOGO_URL}
+            alt="Viveiro Floresta Logo"
+            className="h-20 w-auto"
+          />
         </div>
 
         <Card>

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
-import { Trees, Instagram, Phone, MapPin, Mail } from 'lucide-react'
+import { Instagram, Phone, MapPin, Mail } from 'lucide-react'
+import { LOGO_URL } from '@/lib/constants'
 
 export function Footer() {
   return (
@@ -7,11 +8,12 @@ export function Footer() {
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
           <div className="col-span-1 md:col-span-1">
-            <div className="flex items-center gap-2 mb-4">
-              <Trees className="h-6 w-6 text-primary" />
-              <span className="font-heading font-bold text-lg text-foreground">
-                FLORESTA
-              </span>
+            <div className="mb-4">
+              <img
+                src={LOGO_URL}
+                alt="Viveiro Floresta Logo"
+                className="h-12 w-auto"
+              />
             </div>
             <p className="text-sm text-muted-foreground mb-4">
               Transformando espaços em refúgios naturais. Projetos paisagísticos

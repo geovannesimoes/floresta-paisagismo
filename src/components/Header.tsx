@@ -1,9 +1,10 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Menu, Trees } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 import { useScroll } from '@/hooks/use-scroll'
+import { LOGO_URL } from '@/lib/constants'
 
 export function Header() {
   const scrolled = useScroll(50)
@@ -26,30 +27,14 @@ export function Header() {
     >
       <div className="container mx-auto px-4 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 group">
-          <Trees
+          <img
+            src={LOGO_URL}
+            alt="Viveiro Floresta Logo"
             className={cn(
-              'h-8 w-8 transition-colors duration-300',
-              scrolled || !isHome ? 'text-primary' : 'text-white',
+              'h-12 w-auto transition-all duration-300',
+              !scrolled && isHome ? 'brightness-0 invert' : '',
             )}
           />
-          <div className="flex flex-col">
-            <span
-              className={cn(
-                'font-heading font-bold text-lg leading-tight transition-colors duration-300',
-                scrolled || !isHome ? 'text-foreground' : 'text-white',
-              )}
-            >
-              FLORESTA
-            </span>
-            <span
-              className={cn(
-                'text-xs tracking-wider transition-colors duration-300',
-                scrolled || !isHome ? 'text-muted-foreground' : 'text-white/80',
-              )}
-            >
-              PAISAGISMO
-            </span>
-          </div>
         </Link>
 
         {/* Desktop Nav */}
