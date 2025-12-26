@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Trees, Instagram, Facebook, Phone } from 'lucide-react'
+import { Trees, Instagram, Phone, MapPin, Mail } from 'lucide-react'
 
 export function Footer() {
   return (
@@ -47,12 +47,25 @@ export function Footer() {
 
           <div>
             <h4 className="font-bold mb-4 text-foreground">Contato</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li className="flex items-center gap-2">
-                <Phone className="h-4 w-4" /> (11) 99999-9999
+            <ul className="space-y-3 text-sm text-muted-foreground">
+              <li className="flex items-start gap-2">
+                <Phone className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>(64) 98453-6263</span>
               </li>
-              <li>contato@florestapaisagismo.com</li>
-              <li>São Paulo, SP</li>
+              <li className="flex items-start gap-2">
+                <Mail className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>viveirofloresta@hotmail.com</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <MapPin className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>
+                  Rua Amapá, 539, Centro
+                  <br />
+                  CEP: 75600-000
+                  <br />
+                  Goiatuba, GO
+                </span>
+              </li>
             </ul>
           </div>
 
@@ -60,18 +73,18 @@ export function Footer() {
             <h4 className="font-bold mb-4 text-foreground">Redes Sociais</h4>
             <div className="flex gap-4">
               <a
-                href="#"
-                className="p-2 bg-white rounded-full shadow-sm hover:shadow-md hover:text-primary transition-all"
+                href="https://instagram.com/viveirofloresta"
+                target="_blank"
+                rel="noreferrer"
+                className="p-2 bg-white rounded-full shadow-sm hover:shadow-md hover:text-pink-600 transition-all"
+                aria-label="Instagram"
               >
                 <Instagram className="h-5 w-5" />
               </a>
-              <a
-                href="#"
-                className="p-2 bg-white rounded-full shadow-sm hover:shadow-md hover:text-primary transition-all"
-              >
-                <Facebook className="h-5 w-5" />
-              </a>
             </div>
+            <p className="mt-4 text-sm text-muted-foreground">
+              Siga @viveirofloresta
+            </p>
           </div>
         </div>
 

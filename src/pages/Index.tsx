@@ -2,35 +2,10 @@ import { Link } from 'react-router-dom'
 import { Check, Camera, CreditCard, Download, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ProjectCard } from '@/components/ProjectCard'
+import { useStore } from '@/lib/store'
 
 export default function Index() {
-  const featuredProjects = [
-    {
-      title: 'Oásis Urbano',
-      description:
-        'Transformação completa de um pequeno quintal cimentado em um refúgio tropical com deck de madeira.',
-      before:
-        'https://img.usecurling.com/p/600/400?q=empty%20concrete%20backyard&color=gray',
-      after: 'https://img.usecurling.com/p/600/400?q=tropical%20garden%20deck',
-    },
-    {
-      title: 'Frente Moderna',
-      description:
-        'Valorização da fachada com paisagismo minimalista e iluminação estratégica.',
-      before:
-        'https://img.usecurling.com/p/600/400?q=plain%20house%20front&color=gray',
-      after:
-        'https://img.usecurling.com/p/600/400?q=modern%20landscaping%20front%20yard',
-    },
-    {
-      title: 'Varanda Gourmet',
-      description:
-        'Integração da área de churrasqueira com jardim vertical e vasos ornamentais.',
-      before:
-        'https://img.usecurling.com/p/600/400?q=empty%20balcony&color=gray',
-      after: 'https://img.usecurling.com/p/600/400?q=balcony%20garden%20plants',
-    },
-  ]
+  const { config } = useStore()
 
   const steps = [
     {
@@ -61,7 +36,7 @@ export default function Index() {
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img
-            src="https://img.usecurling.com/p/1920/1080?q=lush%20garden%20luxury%20landscape&dpr=2"
+            src={config.heroImage}
             alt="Jardim exuberante"
             className="w-full h-full object-cover brightness-[0.6]"
           />
@@ -109,9 +84,9 @@ export default function Index() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {featuredProjects.map((project, index) => (
+            {config.featuredProjects.map((project, index) => (
               <div
-                key={index}
+                key={project.id}
                 className="animate-fade-in-up"
                 style={{ animationDelay: `${index * 150}ms` }}
               >
