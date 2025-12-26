@@ -22,7 +22,9 @@ export function Header() {
     <header
       className={cn(
         'fixed top-0 left-0 right-0 z-50 transition-all duration-300',
-        scrolled || !isHome ? 'glass-header py-2' : 'bg-transparent py-4',
+        scrolled || !isHome
+          ? 'glass-header py-2 shadow-md bg-white/95 backdrop-blur-md'
+          : 'bg-transparent py-4',
       )}
     >
       <div className="container mx-auto px-4 flex items-center justify-between">
@@ -44,13 +46,20 @@ export function Header() {
               key={link.path}
               to={link.path}
               className={cn(
-                'text-sm font-medium transition-colors hover:text-primary',
+                'text-sm font-medium transition-colors hover:text-primary relative group',
                 scrolled || !isHome
                   ? 'text-foreground'
                   : 'text-white hover:text-white/80',
+                location.pathname === link.path && 'font-bold text-primary',
               )}
             >
               {link.name}
+              <span
+                className={cn(
+                  'absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full',
+                  location.pathname === link.path && 'w-full',
+                )}
+              ></span>
             </Link>
           ))}
           <Button
@@ -78,7 +87,7 @@ export function Header() {
                 <Link
                   key={link.path}
                   to={link.path}
-                  className="text-lg font-medium text-foreground hover:text-primary transition-colors"
+                  className="text-lg font-medium text-foreground hover:text-primary transition-colors border-b pb-2"
                 >
                   {link.name}
                 </Link>

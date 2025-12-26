@@ -84,10 +84,11 @@ export default function Index() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {config.featuredProjects.map((project, index) => (
-              <div
+            {config.featuredProjects.slice(0, 3).map((project, index) => (
+              <Link
                 key={project.id}
-                className="animate-fade-in-up"
+                to={`/projetos/${project.id}`}
+                className="block animate-fade-in-up hover:no-underline"
                 style={{ animationDelay: `${index * 150}ms` }}
               >
                 <ProjectCard
@@ -96,7 +97,7 @@ export default function Index() {
                   beforeImage={project.before}
                   afterImage={project.after}
                 />
-              </div>
+              </Link>
             ))}
           </div>
 

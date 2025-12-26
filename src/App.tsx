@@ -12,6 +12,7 @@ import Layout from './components/Layout'
 import Index from './pages/Index'
 import Planos from './pages/Planos'
 import Projetos from './pages/Projetos'
+import ProjetoDetalhe from './pages/ProjetoDetalhe'
 import Pedido from './pages/Pedido'
 import Pagamento from './pages/Pagamento'
 import AreaCliente from './pages/AreaCliente'
@@ -40,6 +41,7 @@ const router = createBrowserRouter([
           { path: '/', element: <Index /> },
           { path: '/planos', element: <Planos /> },
           { path: '/projetos', element: <Projetos /> },
+          { path: '/projetos/:id', element: <ProjetoDetalhe /> },
           { path: '/pedido', element: <Pedido /> },
           { path: '/pagamento', element: <Pagamento /> },
           { path: '/area-cliente', element: <AreaCliente /> },
