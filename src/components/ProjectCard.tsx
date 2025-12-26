@@ -23,6 +23,14 @@ export function ProjectCard({
 }: ProjectCardProps) {
   const [showAfter, setShowAfter] = useState(true)
 
+  // Use placeholders if images are missing to prevent broken UI
+  const safeBefore =
+    beforeImage ||
+    'https://img.usecurling.com/p/600/400?q=no%20image&color=gray'
+  const safeAfter =
+    afterImage ||
+    'https://img.usecurling.com/p/600/400?q=no%20image&color=white'
+
   return (
     <Card className="overflow-hidden border-none shadow-elevation group hover:shadow-xl transition-all duration-300 h-full flex flex-col">
       <div
@@ -38,7 +46,7 @@ export function ProjectCard({
           )}
         >
           <img
-            src={afterImage}
+            src={safeAfter}
             alt={`Depois - ${title}`}
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           />
@@ -55,7 +63,7 @@ export function ProjectCard({
           )}
         >
           <img
-            src={beforeImage}
+            src={safeBefore}
             alt={`Antes - ${title}`}
             className="w-full h-full object-cover"
           />

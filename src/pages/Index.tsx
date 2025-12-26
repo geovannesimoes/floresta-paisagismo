@@ -7,6 +7,11 @@ import { useStore } from '@/lib/store'
 export default function Index() {
   const { config } = useStore()
 
+  // Safe access to featuredProjects to prevent runtime errors
+  const featuredProjects = Array.isArray(config?.featuredProjects)
+    ? config.featuredProjects
+    : []
+
   const steps = [
     {
       icon: <Check className="h-8 w-8 text-primary" />,
@@ -36,7 +41,10 @@ export default function Index() {
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img
-            src={config.heroImage}
+            src={
+              config?.heroImage ||
+              'https://img.usecurling.com/p/1920/1080?q=garden&dpr=2'
+            }
             alt="Jardim exuberante"
             className="w-full h-full object-cover brightness-[0.6]"
           />
@@ -84,7 +92,7 @@ export default function Index() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {config.featuredProjects.slice(0, 3).map((project, index) => (
+            {featuredProjects.slice(0, 3).map((project, index) => (
               <Link
                 key={project.id}
                 to={`/projetos/${project.id}`}
@@ -99,6 +107,14 @@ export default function Index() {
                 />
               </Link>
             ))}
+
+            {featuredProjects.length === 0 && (
+              <div className="col-span-3 text-center py-12 bg-white rounded-xl shadow-sm">
+                <p className="text-muted-foreground">
+                  Nenhum projeto em destaque no momento.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="text-center mt-12">

@@ -1,6 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Eye, Upload, Trash, Edit, Plus, Save, LogOut } from 'lucide-react'
+import {
+  Eye,
+  Upload,
+  Trash,
+  Edit,
+  Plus,
+  Save,
+  LogOut,
+  Image as ImageIcon,
+  X,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -57,10 +67,17 @@ export default function Admin() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
 
   // CMS State
-  const [heroInput, setHeroInput] = useState(config.heroImage)
+  const [heroInput, setHeroInput] = useState('')
   const [projectForm, setProjectForm] = useState<Partial<FeaturedProject>>({})
   const [isEditingProject, setIsEditingProject] = useState(false)
   const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false)
+  const [newGalleryImage, setNewGalleryImage] = useState('')
+
+  useEffect(() => {
+    if (config?.heroImage) {
+      setHeroInput(config.heroImage)
+    }
+  }, [config])
 
   // Auth Check
   useEffect(() => {
@@ -120,15 +137,35 @@ export default function Admin() {
   }
 
   const handleEditProject = (project: FeaturedProject) => {
-    setProjectForm(project)
+    setProjectForm({ ...project, images: project.images || [] })
     setIsEditingProject(true)
     setIsProjectDialogOpen(true)
+    setNewGalleryImage('')
   }
 
   const handleNewProject = () => {
-    setProjectForm({})
+    setProjectForm({ images: [] })
     setIsEditingProject(false)
     setIsProjectDialogOpen(true)
+    setNewGalleryImage('')
+  }
+
+  const handleAddGalleryImage = () => {
+    if (!newGalleryImage) return
+    const currentImages = projectForm.images || []
+    setProjectForm({
+      ...projectForm,
+      images: [...currentImages, newGalleryImage],
+    })
+    setNewGalleryImage('')
+  }
+
+  const handleRemoveGalleryImage = (index: number) => {
+    const currentImages = projectForm.images || []
+    setProjectForm({
+      ...projectForm,
+      images: currentImages.filter((_, i) => i !== index),
+    })
   }
 
   const handleSaveProject = () => {
@@ -138,7 +175,10 @@ export default function Admin() {
       !projectForm.before ||
       !projectForm.after
     ) {
-      toast({ title: 'Preencha todos os campos', variant: 'destructive' })
+      toast({
+        title: 'Preencha todos os campos obrigatórios',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -483,7 +523,8 @@ export default function Admin() {
                 <div>
                   <CardTitle>Projetos em Destaque</CardTitle>
                   <CardDescription>
-                    Gerencie a seção "Antes e Depois" da página inicial.
+                    Gerencie a seção "Antes e Depois" e galeria de projetos da
+                    home.
                   </CardDescription>
                 </div>
                 <Button onClick={handleNewProject}>
@@ -494,18 +535,21 @@ export default function Admin() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Imagem (Depois)</TableHead>
+                      <TableHead>Imagem</TableHead>
                       <TableHead>Título</TableHead>
                       <TableHead>Descrição</TableHead>
+                      <TableHead>Galeria</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {config.featuredProjects.map((project) => (
+                    {config?.featuredProjects?.map((project) => (
                       <TableRow key={project.id}>
                         <TableCell>
                           <img
-                            src={project.after}
+                            src={
+                              project.after || 'https://via.placeholder.com/100'
+                            }
                             className="w-16 h-12 object-cover rounded border"
                             alt={project.title}
                           />
@@ -515,6 +559,12 @@ export default function Admin() {
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground max-w-md truncate">
                           {project.description}
+                        </TableCell>
+                        <TableCell>
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                            <ImageIcon className="h-3 w-3" />{' '}
+                            {project.images?.length || 0} fotos
+                          </span>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
@@ -536,10 +586,11 @@ export default function Admin() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {config.featuredProjects.length === 0 && (
+                    {(!config?.featuredProjects ||
+                      config.featuredProjects.length === 0) && (
                       <TableRow>
                         <TableCell
-                          colSpan={4}
+                          colSpan={5}
                           className="text-center py-8 text-muted-foreground"
                         >
                           Nenhum projeto em destaque. Adicione um para exibir na
@@ -557,77 +608,142 @@ export default function Admin() {
 
       {/* Dialog for Add/Edit Project */}
       <Dialog open={isProjectDialogOpen} onOpenChange={setIsProjectDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {isEditingProject ? 'Editar Projeto' : 'Novo Projeto em Destaque'}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Título do Projeto</Label>
-              <Input
-                value={projectForm.title || ''}
-                onChange={(e) =>
-                  setProjectForm({ ...projectForm, title: e.target.value })
-                }
-                placeholder="Ex: Jardim Tropical"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Breve Descrição</Label>
-              <Textarea
-                value={projectForm.description || ''}
-                onChange={(e) =>
-                  setProjectForm({
-                    ...projectForm,
-                    description: e.target.value,
-                  })
-                }
-                placeholder="Descreva a transformação..."
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Foto "Antes" (URL)</Label>
-                <Input
-                  value={projectForm.before || ''}
-                  onChange={(e) =>
-                    setProjectForm({ ...projectForm, before: e.target.value })
-                  }
-                  placeholder="https://..."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Foto "Depois" (URL)</Label>
-                <Input
-                  value={projectForm.after || ''}
-                  onChange={(e) =>
-                    setProjectForm({ ...projectForm, after: e.target.value })
-                  }
-                  placeholder="https://..."
-                />
-              </div>
-            </div>
-
-            {(projectForm.before || projectForm.after) && (
-              <div className="grid grid-cols-2 gap-4 mt-2">
-                {projectForm.before && (
-                  <img
-                    src={projectForm.before}
-                    className="w-full h-24 object-cover rounded bg-gray-100"
+          <div className="space-y-6 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Título do Projeto</Label>
+                  <Input
+                    value={projectForm.title || ''}
+                    onChange={(e) =>
+                      setProjectForm({ ...projectForm, title: e.target.value })
+                    }
+                    placeholder="Ex: Jardim Tropical"
                   />
-                )}
-                {projectForm.after && (
-                  <img
-                    src={projectForm.after}
-                    className="w-full h-24 object-cover rounded bg-gray-100"
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Breve Descrição</Label>
+                  <Textarea
+                    value={projectForm.description || ''}
+                    onChange={(e) =>
+                      setProjectForm({
+                        ...projectForm,
+                        description: e.target.value,
+                      })
+                    }
+                    placeholder="Descreva a transformação..."
+                    rows={4}
                   />
-                )}
+                </div>
               </div>
-            )}
+
+              <div className="space-y-4">
+                <Label>Comparação Antes/Depois</Label>
+                <div className="space-y-3 p-4 bg-muted/20 rounded-lg border">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">
+                      Foto "Antes" (URL)
+                    </Label>
+                    <Input
+                      value={projectForm.before || ''}
+                      onChange={(e) =>
+                        setProjectForm({
+                          ...projectForm,
+                          before: e.target.value,
+                        })
+                      }
+                      placeholder="https://..."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">
+                      Foto "Depois" (URL)
+                    </Label>
+                    <Input
+                      value={projectForm.after || ''}
+                      onChange={(e) =>
+                        setProjectForm({
+                          ...projectForm,
+                          after: e.target.value,
+                        })
+                      }
+                      placeholder="https://..."
+                    />
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    {projectForm.before && (
+                      <img
+                        src={projectForm.before}
+                        className="w-12 h-12 object-cover rounded bg-white border"
+                      />
+                    )}
+                    {projectForm.after && (
+                      <img
+                        src={projectForm.after}
+                        className="w-12 h-12 object-cover rounded bg-white border"
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 border-t pt-4">
+              <Label className="flex items-center gap-2">
+                <ImageIcon className="h-4 w-4" /> Galeria de Imagens Adicionais
+              </Label>
+
+              <div className="flex gap-2">
+                <Input
+                  value={newGalleryImage}
+                  onChange={(e) => setNewGalleryImage(e.target.value)}
+                  placeholder="Cole a URL da imagem aqui..."
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  onClick={handleAddGalleryImage}
+                  variant="secondary"
+                >
+                  Adicionar
+                </Button>
+              </div>
+
+              {projectForm.images && projectForm.images.length > 0 ? (
+                <div className="grid grid-cols-4 md:grid-cols-6 gap-4">
+                  {projectForm.images.map((img, idx) => (
+                    <div
+                      key={idx}
+                      className="relative group aspect-square rounded-md overflow-hidden bg-gray-100 border"
+                    >
+                      <img
+                        src={img}
+                        className="w-full h-full object-cover"
+                        alt={`Galeria ${idx}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveGalleryImage(idx)}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4 bg-muted/20 rounded border border-dashed">
+                  Nenhuma imagem adicional na galeria.
+                </p>
+              )}
+            </div>
           </div>
           <div className="flex justify-end gap-2">
             <Button

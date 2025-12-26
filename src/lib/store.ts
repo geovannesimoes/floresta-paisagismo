@@ -30,6 +30,7 @@ export interface FeaturedProject {
   description: string
   before: string
   after: string
+  images?: string[]
 }
 
 export interface SiteConfig {
@@ -42,7 +43,7 @@ interface StoreData {
   config: SiteConfig
 }
 
-const STORE_KEY = 'floresta_db_v2'
+const STORE_KEY = 'floresta_db_v3'
 
 const defaultFeaturedProjects: FeaturedProject[] = [
   {
@@ -53,6 +54,11 @@ const defaultFeaturedProjects: FeaturedProject[] = [
     before:
       'https://img.usecurling.com/p/600/400?q=empty%20concrete%20backyard&color=gray',
     after: 'https://img.usecurling.com/p/600/400?q=tropical%20garden%20deck',
+    images: [
+      'https://img.usecurling.com/p/600/400?q=tropical%20garden%20detail',
+      'https://img.usecurling.com/p/600/400?q=wooden%20deck%20plants',
+      'https://img.usecurling.com/p/600/400?q=garden%20lighting%20night',
+    ],
   },
   {
     id: '2',
@@ -63,6 +69,10 @@ const defaultFeaturedProjects: FeaturedProject[] = [
       'https://img.usecurling.com/p/600/400?q=plain%20house%20front&color=gray',
     after:
       'https://img.usecurling.com/p/600/400?q=modern%20landscaping%20front%20yard',
+    images: [
+      'https://img.usecurling.com/p/600/400?q=modern%20garden%20pathway',
+      'https://img.usecurling.com/p/600/400?q=facade%20lighting',
+    ],
   },
   {
     id: '3',
@@ -71,6 +81,10 @@ const defaultFeaturedProjects: FeaturedProject[] = [
       'Integração da área de churrasqueira com jardim vertical e vasos ornamentais.',
     before: 'https://img.usecurling.com/p/600/400?q=empty%20balcony&color=gray',
     after: 'https://img.usecurling.com/p/600/400?q=balcony%20garden%20plants',
+    images: [
+      'https://img.usecurling.com/p/600/400?q=vertical%20garden%20detail',
+      'https://img.usecurling.com/p/600/400?q=potted%20plants%20balcony',
+    ],
   },
 ]
 
@@ -118,10 +132,14 @@ export const useStore = () => {
     if (stored) {
       try {
         const parsed = JSON.parse(stored)
-        // Ensure structure is correct (migration for older versions)
+        // Robustness check
         if (!parsed.config) {
           setData({ ...parsed, config: initialData.config })
         } else {
+          // Ensure featuredProjects exists and is array
+          if (!Array.isArray(parsed.config.featuredProjects)) {
+            parsed.config.featuredProjects = initialData.config.featuredProjects
+          }
           setData(parsed)
         }
       } catch (e) {
@@ -187,7 +205,7 @@ export const useStore = () => {
   const addFeaturedProject = (project: Omit<FeaturedProject, 'id'>) => {
     const newProject = {
       ...project,
-      id: Math.random().toString(36).substr(2, 9),
+      id: Math.random().toString(36).substring(2, 9),
     }
     saveData({
       ...data,

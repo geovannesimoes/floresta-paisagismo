@@ -2,11 +2,16 @@ import { Link } from 'react-router-dom'
 import { ProjectCard } from '@/components/ProjectCard'
 import { useStore } from '@/lib/store'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { ArrowRight } from 'lucide-react'
 
 export default function Projetos() {
   const { config } = useStore()
-  const { featuredProjects } = config
+
+  // Robust check
+  const featuredProjects = Array.isArray(config?.featuredProjects)
+    ? config.featuredProjects
+    : []
 
   return (
     <div className="pt-24 pb-16 min-h-screen bg-background">
