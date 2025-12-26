@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Eye,
   Upload,
@@ -7,7 +8,7 @@ import {
   Plus,
   Save,
   LayoutDashboard,
-  Image as ImageIcon,
+  LogOut,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -47,8 +48,8 @@ import { useStore, Order, OrderStatus, FeaturedProject } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
 
 export default function Admin() {
-  const [password, setPassword] = useState('')
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const navigate = useNavigate()
+  const { toast } = useToast()
 
   const {
     orders,
@@ -61,8 +62,6 @@ export default function Admin() {
     removeFeaturedProject,
   } = useStore()
 
-  const { toast } = useToast()
-
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
 
   // CMS State
@@ -71,13 +70,23 @@ export default function Admin() {
   const [isEditingProject, setIsEditingProject] = useState(false)
   const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false)
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (password === 'admin123') {
-      setIsAuthenticated(true)
-    } else {
-      toast({ title: 'Senha incorreta', variant: 'destructive' })
+  // Auth Check
+  useEffect(() => {
+    const isAuth = localStorage.getItem('floresta_admin_auth') === 'true'
+    if (!isAuth) {
+      navigate('/admin/login')
     }
+  }, [navigate])
+
+  const handleLogout = () => {
+    localStorage.removeItem('floresta_admin_auth')
+    navigate('/admin/login')
+    toast({ title: 'Sessão encerrada' })
+  }
+
+  // Prevent flash of content
+  if (localStorage.getItem('floresta_admin_auth') !== 'true') {
+    return null
   }
 
   const handleStatusChange = (id: string, status: OrderStatus) => {
@@ -158,32 +167,6 @@ export default function Admin() {
     }
   }
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <form
-          onSubmit={handleLogin}
-          className="bg-white p-8 rounded-lg shadow-md w-full max-w-sm"
-        >
-          <div className="mb-6 text-center">
-            <h1 className="text-2xl font-bold">Floresta Admin</h1>
-            <p className="text-sm text-muted-foreground">Acesso Restrito</p>
-          </div>
-          <Input
-            type="password"
-            placeholder="Senha"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="mb-4"
-          />
-          <Button type="submit" className="w-full">
-            Entrar
-          </Button>
-        </form>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
@@ -193,8 +176,8 @@ export default function Admin() {
             <LayoutDashboard className="h-5 w-5 text-primary" />
             <span className="font-bold text-lg">Floresta Backoffice</span>
           </div>
-          <Button variant="outline" onClick={() => setIsAuthenticated(false)}>
-            Sair
+          <Button variant="outline" onClick={handleLogout} className="gap-2">
+            <LogOut className="h-4 w-4" /> Sair
           </Button>
         </div>
       </header>

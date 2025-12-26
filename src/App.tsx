@@ -16,6 +16,7 @@ import Pedido from './pages/Pedido'
 import Pagamento from './pages/Pagamento'
 import AreaCliente from './pages/AreaCliente'
 import Admin from './pages/Admin'
+import AdminLogin from './pages/AdminLogin'
 import NotFound from './pages/NotFound'
 
 const RootWrapper = () => {
@@ -47,6 +48,10 @@ const router = createBrowserRouter([
       {
         path: '/admin',
         element: <Admin />,
+      },
+      {
+        path: '/admin/login',
+        element: <AdminLogin />,
       },
       {
         path: '*',
