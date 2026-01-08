@@ -27,17 +27,6 @@ export default function AreaCliente() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Demo bypass
-    if (orderId.toUpperCase() === 'DEMO') {
-      const demo = getOrder('DEMO-1234')
-      if (demo) {
-        setCurrentOrder(demo)
-        setUserOrders([demo])
-        setIsAuthenticated(true)
-        return
-      }
-    }
-
     const order = getOrder(orderId)
 
     if (order && order.clientEmail.toLowerCase() === email.toLowerCase()) {
@@ -119,11 +108,6 @@ export default function AreaCliente() {
                 <Button type="submit" className="w-full h-11 text-lg">
                   Acessar Pedido
                 </Button>
-                <div className="text-center text-xs text-muted-foreground mt-4 bg-muted p-2 rounded">
-                  <p>
-                    Para testar, use Pedido: <strong>DEMO</strong>
-                  </p>
-                </div>
               </form>
             </CardContent>
           </Card>

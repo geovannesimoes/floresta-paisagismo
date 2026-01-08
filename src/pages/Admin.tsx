@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import {
   LogOut,
   Plus,
@@ -28,7 +28,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -39,13 +38,7 @@ import {
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
 import { LOGO_URL } from '@/lib/constants'
@@ -238,10 +231,16 @@ export default function Admin() {
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={LOGO_URL} alt="Logo" className="h-10 w-auto" />
-            <span className="font-bold text-lg text-gray-500 border-l pl-3">
-              CMS & Gestão
-            </span>
+            <Link
+              to="/"
+              className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+              title="Ir para o site"
+            >
+              <img src={LOGO_URL} alt="Logo" className="h-10 w-auto" />
+              <span className="font-bold text-lg text-gray-500 border-l pl-3">
+                CMS & Gestão
+              </span>
+            </Link>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground hidden sm:inline-block">
@@ -349,7 +348,6 @@ export default function Admin() {
             <div className="text-sm text-muted-foreground mb-4">
               Projetos marcados como "Destaque" aparecem na página inicial.
             </div>
-            {/* Reusing same table logic but filtered could be done here if needed */}
             {projects.filter((p) => p.is_featured).length === 0 && (
               <div className="text-center py-10 bg-white rounded-lg border">
                 Nenhum projeto em destaque. Edite um projeto e marque "Destaque

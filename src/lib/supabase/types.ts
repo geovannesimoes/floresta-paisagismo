@@ -15,7 +15,80 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      project_media: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          materials_used: string | null
+          plants_used: string | null
+          project_id: string
+          type: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          materials_used?: string | null
+          plants_used?: string | null
+          project_id: string
+          type: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          materials_used?: string | null
+          plants_used?: string | null
+          project_id?: string
+          type?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'project_media_project_id_fkey'
+            columns: ['project_id']
+            isOneToOne: false
+            referencedRelation: 'projects'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          client_name: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_featured: boolean | null
+          status: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          client_name?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_featured?: boolean | null
+          status?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          client_name?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_featured?: boolean | null
+          status?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
