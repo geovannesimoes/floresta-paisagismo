@@ -95,4 +95,24 @@ export const projectsService = {
       .single()
     return { data, error }
   },
+
+  async uploadImage(file: File) {
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
+    const filePath = `${fileName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('project-images')
+      .upload(filePath, file)
+
+    if (uploadError) {
+      return { url: null, error: uploadError }
+    }
+
+    const { data } = supabase.storage
+      .from('project-images')
+      .getPublicUrl(filePath)
+
+    return { url: data.publicUrl, error: null }
+  },
 }

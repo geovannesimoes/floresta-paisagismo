@@ -11,6 +11,7 @@ import {
   Loader2,
   Leaf,
   Hammer,
+  Upload,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -61,11 +62,14 @@ export default function Admin() {
 
   // Media Form State
   const [newMediaUrl, setNewMediaUrl] = useState('')
+  const [newMediaFile, setNewMediaFile] = useState<File | null>(null)
   const [newMediaType, setNewMediaType] = useState<
     'before' | 'after' | 'gallery'
   >('gallery')
   const [newMediaPlants, setNewMediaPlants] = useState('')
   const [newMediaMaterials, setNewMediaMaterials] = useState('')
+  const [newMediaDescription, setNewMediaDescription] = useState('')
+  const [isUploading, setIsUploading] = useState(false)
 
   const fetchProjects = useCallback(async () => {
     setLoading(true)
@@ -79,15 +83,11 @@ export default function Admin() {
   }, [toast])
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate('/admin/login')
-    }
+    if (!authLoading && !user) navigate('/admin/login')
   }, [user, authLoading, navigate])
 
   useEffect(() => {
-    if (user) {
-      fetchProjects()
-    }
+    if (user) fetchProjects()
   }, [user, fetchProjects])
 
   const handleLogout = async () => {
@@ -103,9 +103,7 @@ export default function Admin() {
 
     try {
       let savedProject: Project
-
       if (editingProject.id) {
-        // Update
         const { data, error } = await projectsService.updateProject(
           editingProject.id,
           editingProject,
@@ -114,7 +112,6 @@ export default function Admin() {
         savedProject = data
         toast({ title: 'Projeto atualizado com sucesso' })
       } else {
-        // Create
         const { data, error } = await projectsService.createProject({
           title: editingProject.title!,
           description: editingProject.description || '',
@@ -126,10 +123,8 @@ export default function Admin() {
         savedProject = data
         toast({ title: 'Projeto criado com sucesso' })
       }
-
       setEditingProject(savedProject)
       fetchProjects()
-      // Keep dialog open to add media
     } catch (error: any) {
       toast({
         title: 'Erro ao salvar projeto',
@@ -144,7 +139,6 @@ export default function Admin() {
       !confirm('Tem certeza? Isso apagará todas as fotos e dados do projeto.')
     )
       return
-
     const { error } = await projectsService.deleteProject(id)
     if (error) {
       toast({ title: 'Erro ao excluir', variant: 'destructive' })
@@ -155,32 +149,50 @@ export default function Admin() {
   }
 
   const handleAddMedia = async () => {
-    if (!editingProject.id || !newMediaUrl) return
+    if (!editingProject.id) return
+    if (!newMediaUrl && !newMediaFile) {
+      toast({
+        title: 'Selecione uma imagem',
+        description: 'Faça upload de um arquivo ou insira uma URL.',
+        variant: 'destructive',
+      })
+      return
+    }
 
     try {
+      setIsUploading(true)
+      let finalUrl = newMediaUrl
+
+      if (newMediaFile) {
+        const { url, error } = await projectsService.uploadImage(newMediaFile)
+        if (error) throw error
+        if (url) finalUrl = url
+      }
+
       const { data, error } = await projectsService.addMedia({
         project_id: editingProject.id,
-        url: newMediaUrl,
+        url: finalUrl,
         type: newMediaType,
+        description: newMediaDescription,
         plants_used: newMediaPlants,
         materials_used: newMediaMaterials,
       })
       if (error) throw error
 
-      // Update local state
-      const updatedMedia = [...mediaList, data]
-      setMediaList(updatedMedia)
-
-      // Update project list state to reflect changes immediately
-      const updatedProjects = projects.map((p) =>
-        p.id === editingProject.id ? { ...p, media: updatedMedia } : p,
+      setMediaList([...mediaList, data])
+      setProjects(
+        projects.map((p) =>
+          p.id === editingProject.id
+            ? { ...p, media: [...(p.media || []), data] }
+            : p,
+        ),
       )
-      setProjects(updatedProjects)
 
-      // Reset form
       setNewMediaUrl('')
+      setNewMediaFile(null)
       setNewMediaPlants('')
       setNewMediaMaterials('')
+      setNewMediaDescription('')
       toast({ title: 'Mídia adicionada' })
     } catch (error: any) {
       toast({
@@ -188,6 +200,8 @@ export default function Admin() {
         description: error.message,
         variant: 'destructive',
       })
+    } finally {
+      setIsUploading(false)
     }
   }
 
@@ -195,14 +209,13 @@ export default function Admin() {
     try {
       const { error } = await projectsService.deleteMedia(id)
       if (error) throw error
-
       const updatedMedia = mediaList.filter((m) => m.id !== id)
       setMediaList(updatedMedia)
-
-      const updatedProjects = projects.map((p) =>
-        p.id === editingProject.id ? { ...p, media: updatedMedia } : p,
+      setProjects(
+        projects.map((p) =>
+          p.id === editingProject.id ? { ...p, media: updatedMedia } : p,
+        ),
       )
-      setProjects(updatedProjects)
     } catch (error: any) {
       toast({ title: 'Erro ao remover mídia', variant: 'destructive' })
     }
@@ -217,6 +230,8 @@ export default function Admin() {
       setMediaList([])
     }
     setIsProjectDialogOpen(true)
+    setNewMediaFile(null)
+    setNewMediaUrl('')
   }
 
   if (authLoading)
@@ -230,18 +245,15 @@ export default function Admin() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              to="/"
-              className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-              title="Ir para o site"
-            >
-              <img src={LOGO_URL} alt="Logo" className="h-10 w-auto" />
-              <span className="font-bold text-lg text-gray-500 border-l pl-3">
-                CMS & Gestão
-              </span>
-            </Link>
-          </div>
+          <Link
+            to="/"
+            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+          >
+            <img src={LOGO_URL} alt="Logo" className="h-10 w-auto" />
+            <span className="font-bold text-lg text-gray-500 border-l pl-3">
+              CMS & Gestão
+            </span>
+          </Link>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground hidden sm:inline-block">
               {user?.email}
@@ -265,7 +277,6 @@ export default function Admin() {
           <TabsList>
             <TabsTrigger value="all">Todos</TabsTrigger>
             <TabsTrigger value="featured">Home (Destaques)</TabsTrigger>
-            <TabsTrigger value="clients">Clientes</TabsTrigger>
           </TabsList>
 
           <TabsContent value="all" className="space-y-4">
@@ -275,7 +286,6 @@ export default function Admin() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Título</TableHead>
-                      <TableHead>Cliente</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Destaque</TableHead>
                       <TableHead>Mídia</TableHead>
@@ -285,16 +295,13 @@ export default function Admin() {
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8">
+                        <TableCell colSpan={5} className="text-center py-8">
                           <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                         </TableCell>
                       </TableRow>
                     ) : projects.length === 0 ? (
                       <TableRow>
-                        <TableCell
-                          colSpan={6}
-                          className="text-center py-8 text-muted-foreground"
-                        >
+                        <TableCell colSpan={5} className="text-center py-8">
                           Nenhum projeto encontrado.
                         </TableCell>
                       </TableRow>
@@ -304,7 +311,6 @@ export default function Admin() {
                           <TableCell className="font-medium">
                             {project.title}
                           </TableCell>
-                          <TableCell>{project.client_name || '-'}</TableCell>
                           <TableCell>
                             <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
                               {project.status}
@@ -346,12 +352,11 @@ export default function Admin() {
 
           <TabsContent value="featured">
             <div className="text-sm text-muted-foreground mb-4">
-              Projetos marcados como "Destaque" aparecem na página inicial.
+              Projetos em destaque aparecem na Home.
             </div>
             {projects.filter((p) => p.is_featured).length === 0 && (
               <div className="text-center py-10 bg-white rounded-lg border">
-                Nenhum projeto em destaque. Edite um projeto e marque "Destaque
-                na Home".
+                Nenhum projeto em destaque.
               </div>
             )}
           </TabsContent>
@@ -369,7 +374,6 @@ export default function Admin() {
             </DialogHeader>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4">
-              {/* Left Column: Project Details */}
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Título do Projeto</Label>
@@ -381,12 +385,12 @@ export default function Admin() {
                         title: e.target.value,
                       })
                     }
-                    placeholder="Ex: Jardim Tropical da Família Silva"
+                    placeholder="Ex: Jardim Tropical"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Nome do Cliente (Opcional)</Label>
+                  <Label>Cliente (Opcional)</Label>
                   <Input
                     value={editingProject.client_name || ''}
                     onChange={(e) =>
@@ -395,7 +399,6 @@ export default function Admin() {
                         client_name: e.target.value,
                       })
                     }
-                    placeholder="Ex: João da Silva"
                   />
                 </div>
 
@@ -409,7 +412,7 @@ export default function Admin() {
                       }
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Status" />
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Em Andamento">
@@ -431,7 +434,7 @@ export default function Admin() {
                             is_featured: e.target.checked,
                           })
                         }
-                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        className="h-4 w-4 rounded border-gray-300 text-primary"
                       />
                       <span className="text-sm font-medium">
                         Destaque na Home
@@ -450,7 +453,6 @@ export default function Admin() {
                         description: e.target.value,
                       })
                     }
-                    placeholder="Detalhes sobre o projeto..."
                     rows={5}
                   />
                 </div>
@@ -460,30 +462,46 @@ export default function Admin() {
                 </Button>
               </div>
 
-              {/* Right Column: Media Management */}
               <div className="space-y-4 border-l pl-0 md:pl-8">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-lg flex items-center gap-2">
-                    <ImageIcon className="h-5 w-5" /> Mídia & Detalhes
-                  </h3>
-                  {!editingProject.id && (
-                    <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                      Salve o projeto primeiro
-                    </span>
-                  )}
-                </div>
+                <h3 className="font-semibold text-lg flex items-center gap-2">
+                  <ImageIcon className="h-5 w-5" /> Mídia & Detalhes
+                </h3>
 
                 {editingProject.id ? (
                   <div className="space-y-4">
                     <div className="bg-muted/30 p-4 rounded-lg space-y-3 border">
-                      <div className="space-y-2">
-                        <Label>URL da Imagem</Label>
-                        <Input
-                          value={newMediaUrl}
-                          onChange={(e) => setNewMediaUrl(e.target.value)}
-                          placeholder="https://..."
-                        />
-                      </div>
+                      <Tabs defaultValue="upload" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2">
+                          <TabsTrigger value="upload">Upload</TabsTrigger>
+                          <TabsTrigger value="url">Link</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="upload" className="space-y-2">
+                          <Label>Selecione o arquivo</Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="file"
+                              accept="image/png, image/jpeg, image/webp"
+                              onChange={(e) =>
+                                setNewMediaFile(e.target.files?.[0] || null)
+                              }
+                              className="cursor-pointer"
+                            />
+                            {newMediaFile && (
+                              <span className="text-xs text-green-600 font-bold whitespace-nowrap">
+                                Selecionado
+                              </span>
+                            )}
+                          </div>
+                        </TabsContent>
+                        <TabsContent value="url" className="space-y-2">
+                          <Label>URL da Imagem</Label>
+                          <Input
+                            value={newMediaUrl}
+                            onChange={(e) => setNewMediaUrl(e.target.value)}
+                            placeholder="https://..."
+                          />
+                        </TabsContent>
+                      </Tabs>
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -503,21 +521,36 @@ export default function Admin() {
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label>Plantas (Opcional)</Label>
+                          <Label>Descrição</Label>
                           <Input
-                            value={newMediaPlants}
-                            onChange={(e) => setNewMediaPlants(e.target.value)}
-                            placeholder="Ex: Palmeiras, Bromélias"
+                            value={newMediaDescription}
+                            onChange={(e) =>
+                              setNewMediaDescription(e.target.value)
+                            }
+                            placeholder="Legenda da foto"
                           />
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Materiais (Opcional)</Label>
-                        <Input
-                          value={newMediaMaterials}
-                          onChange={(e) => setNewMediaMaterials(e.target.value)}
-                          placeholder="Ex: Madeira Cumaru, Pedra Seixo"
-                        />
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Plantas</Label>
+                          <Input
+                            value={newMediaPlants}
+                            onChange={(e) => setNewMediaPlants(e.target.value)}
+                            placeholder="Ex: Palmeiras"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Materiais</Label>
+                          <Input
+                            value={newMediaMaterials}
+                            onChange={(e) =>
+                              setNewMediaMaterials(e.target.value)
+                            }
+                            placeholder="Ex: Madeira"
+                          />
+                        </div>
                       </div>
 
                       <Button
@@ -525,8 +558,14 @@ export default function Admin() {
                         size="sm"
                         variant="secondary"
                         className="w-full"
+                        disabled={isUploading}
                       >
-                        Adicionar Foto
+                        {isUploading ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <Upload className="h-4 w-4 mr-2" />
+                        )}
+                        {isUploading ? 'Enviando...' : 'Adicionar Foto'}
                       </Button>
                     </div>
 
@@ -539,13 +578,17 @@ export default function Admin() {
                           <img
                             src={media.url}
                             className="w-full h-32 object-cover"
+                            alt={media.description || 'Project media'}
                           />
                           <div className="p-2 text-xs">
                             <div className="font-bold uppercase text-[10px] text-primary mb-1">
                               {media.type}
                             </div>
+                            <div className="truncate text-muted-foreground">
+                              {media.description}
+                            </div>
                             {(media.plants_used || media.materials_used) && (
-                              <div className="flex gap-1 flex-wrap">
+                              <div className="flex gap-1 flex-wrap mt-1">
                                 {media.plants_used && (
                                   <Leaf className="h-3 w-3 text-green-600" />
                                 )}
@@ -569,7 +612,7 @@ export default function Admin() {
                   </div>
                 ) : (
                   <div className="flex items-center justify-center h-48 bg-gray-50 rounded-lg border border-dashed text-muted-foreground text-sm">
-                    Preencha os dados e salve para adicionar fotos.
+                    Salve o projeto para adicionar fotos.
                   </div>
                 )}
               </div>
