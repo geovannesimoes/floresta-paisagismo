@@ -1,16 +1,34 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, Camera, CreditCard, Download, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ProjectCard } from '@/components/ProjectCard'
 import { useStore } from '@/lib/store'
+import { projectsService, Project } from '@/services/projectsService'
 
 export default function Index() {
   const { config } = useStore()
+  const [featuredProjects, setFeaturedProjects] = useState<Project[]>([])
 
-  // Safe access to featuredProjects to prevent runtime errors
-  const featuredProjects = Array.isArray(config?.featuredProjects)
-    ? config.featuredProjects
-    : []
+  useEffect(() => {
+    const loadProjects = async () => {
+      const { data } = await projectsService.getProjects(true)
+      if (data) {
+        setFeaturedProjects(data)
+      }
+    }
+    loadProjects()
+  }, [])
+
+  // Helper to extract before/after from media array
+  const getProjectImages = (project: Project) => {
+    const before = project.media?.find((m) => m.type === 'before')?.url || ''
+    const after =
+      project.media?.find((m) => m.type === 'after')?.url ||
+      project.media?.[0]?.url ||
+      ''
+    return { before, after }
+  }
 
   const steps = [
     {
@@ -92,21 +110,24 @@ export default function Index() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {featuredProjects.slice(0, 3).map((project, index) => (
-              <Link
-                key={project.id}
-                to={`/projetos/${project.id}`}
-                className="block animate-fade-in-up hover:no-underline"
-                style={{ animationDelay: `${index * 150}ms` }}
-              >
-                <ProjectCard
-                  title={project.title}
-                  description={project.description}
-                  beforeImage={project.before}
-                  afterImage={project.after}
-                />
-              </Link>
-            ))}
+            {featuredProjects.slice(0, 3).map((project, index) => {
+              const { before, after } = getProjectImages(project)
+              return (
+                <Link
+                  key={project.id}
+                  to={`/projetos/${project.id}`}
+                  className="block animate-fade-in-up hover:no-underline"
+                  style={{ animationDelay: `${index * 150}ms` }}
+                >
+                  <ProjectCard
+                    title={project.title}
+                    description={project.description}
+                    beforeImage={before}
+                    afterImage={after}
+                  />
+                </Link>
+              )
+            })}
 
             {featuredProjects.length === 0 && (
               <div className="col-span-3 text-center py-12 bg-white rounded-xl shadow-sm">

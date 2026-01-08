@@ -1,17 +1,35 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ProjectCard } from '@/components/ProjectCard'
-import { useStore } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Loader2 } from 'lucide-react'
+import { projectsService, Project } from '@/services/projectsService'
 
 export default function Projetos() {
-  const { config } = useStore()
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Robust check
-  const featuredProjects = Array.isArray(config?.featuredProjects)
-    ? config.featuredProjects
-    : []
+  useEffect(() => {
+    const loadProjects = async () => {
+      setLoading(true)
+      const { data } = await projectsService.getProjects()
+      if (data) {
+        setProjects(data)
+      }
+      setLoading(false)
+    }
+    loadProjects()
+  }, [])
+
+  const getProjectImages = (project: Project) => {
+    const before = project.media?.find((m) => m.type === 'before')?.url || ''
+    const after =
+      project.media?.find((m) => m.type === 'after')?.url ||
+      project.media?.[0]?.url ||
+      ''
+    return { before, after }
+  }
 
   return (
     <div className="pt-24 pb-16 min-h-screen bg-background">
@@ -34,23 +52,30 @@ export default function Projetos() {
         </div>
 
         {/* Projects Grid */}
-        {featuredProjects.length > 0 ? (
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          </div>
+        ) : projects.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-            {featuredProjects.map((project, index) => (
-              <Link
-                key={project.id}
-                to={`/projetos/${project.id}`}
-                className="block h-full animate-fade-in-up hover:no-underline"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <ProjectCard
-                  title={project.title}
-                  description={project.description}
-                  beforeImage={project.before}
-                  afterImage={project.after}
-                />
-              </Link>
-            ))}
+            {projects.map((project, index) => {
+              const { before, after } = getProjectImages(project)
+              return (
+                <Link
+                  key={project.id}
+                  to={`/projetos/${project.id}`}
+                  className="block h-full animate-fade-in-up hover:no-underline"
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <ProjectCard
+                    title={project.title}
+                    description={project.description}
+                    beforeImage={before}
+                    afterImage={after}
+                  />
+                </Link>
+              )
+            })}
           </div>
         ) : (
           <div className="text-center py-20 bg-muted/30 rounded-xl mb-16">

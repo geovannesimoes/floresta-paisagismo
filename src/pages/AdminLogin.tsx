@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Lock, Loader2 } from 'lucide-react'
+import { Lock, Loader2, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,43 +13,53 @@ import {
   CardFooter,
 } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
+import { useAuth } from '@/hooks/use-auth'
 import { LOGO_URL } from '@/lib/constants'
 
 export default function AdminLogin() {
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { signIn, user } = useAuth()
 
   useEffect(() => {
-    // If already logged in, redirect to admin
-    if (localStorage.getItem('floresta_admin_auth') === 'true') {
+    if (user) {
       navigate('/admin')
     }
-  }, [navigate])
+  }, [user, navigate])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
+    setIsSubmitting(true)
 
-    // Simulate API delay for demo authentication
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    try {
+      // Auto-append domain if user enters just the username "geovanne"
+      let loginEmail = email.trim()
+      if (!loginEmail.includes('@')) {
+        loginEmail = `${loginEmail}@viveirofloresta.com`
+      }
 
-    if (username === 'ADMIN' && password === 'admin123') {
-      localStorage.setItem('floresta_admin_auth', 'true')
+      const { error } = await signIn(loginEmail, password)
+
+      if (error) {
+        throw error
+      }
+
       toast({
         title: 'Acesso concedido',
-        description: 'Bem-vindo de volta ao painel administrativo.',
+        description: 'Bem-vindo ao painel administrativo.',
       })
       navigate('/admin')
-    } else {
+    } catch (error: any) {
       toast({
-        title: 'Acesso negado',
-        description: 'Usuário ou senha incorretos.',
+        title: 'Falha no login',
+        description: error.message || 'Verifique suas credenciais.',
         variant: 'destructive',
       })
-      setIsLoading(false)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -64,26 +74,27 @@ export default function AdminLogin() {
           />
         </div>
 
-        <Card>
+        <Card className="shadow-lg border-t-4 border-t-primary">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-center">
-              Login Administrativo
+              Administração
             </CardTitle>
             <CardDescription className="text-center">
-              Entre com suas credenciais para gerenciar o sistema
+              Acesso restrito à equipe autorizada
             </CardDescription>
           </CardHeader>
           <form onSubmit={handleLogin}>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="username">Usuário</Label>
+                <Label htmlFor="email">Login ou E-mail</Label>
                 <Input
-                  id="username"
-                  placeholder="Ex: ADMIN"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  disabled={isLoading}
+                  id="email"
+                  placeholder="ex: geovanne"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isSubmitting}
                   autoComplete="username"
+                  required
                 />
               </div>
               <div className="space-y-2">
@@ -99,33 +110,27 @@ export default function AdminLogin() {
                     className="pl-9"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    disabled={isLoading}
+                    disabled={isSubmitting}
                     autoComplete="current-password"
+                    required
                   />
                 </div>
               </div>
             </CardContent>
             <CardFooter>
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Autenticando...
+                    Entrando...
                   </>
                 ) : (
-                  'Entrar'
+                  'Acessar Sistema'
                 )}
               </Button>
             </CardFooter>
           </form>
         </Card>
-
-        <div className="mt-4 text-center text-sm text-muted-foreground">
-          <p>
-            Demo: Usuário <strong>ADMIN</strong> / Senha{' '}
-            <strong>admin123</strong>
-          </p>
-        </div>
       </div>
     </div>
   )

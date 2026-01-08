@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Eye,
-  Upload,
+  LogOut,
+  Plus,
   Trash,
   Edit,
-  Plus,
-  Save,
-  LogOut,
   Image as ImageIcon,
+  Save,
   X,
+  Loader2,
+  Leaf,
+  Hammer,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Table,
   TableBody,
@@ -44,718 +46,539 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card'
-import { Textarea } from '@/components/ui/textarea'
-import { useStore, Order, OrderStatus, FeaturedProject } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
+import { useAuth } from '@/hooks/use-auth'
 import { LOGO_URL } from '@/lib/constants'
+import {
+  projectsService,
+  Project,
+  ProjectMedia,
+} from '@/services/projectsService'
 
 export default function Admin() {
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { signOut, user, loading: authLoading } = useAuth()
 
-  const {
-    orders,
-    updateOrderStatus,
-    updateOrderFinalImages,
-    config,
-    updateHeroImage,
-    addFeaturedProject,
-    updateFeaturedProject,
-    removeFeaturedProject,
-  } = useStore()
-
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
-
-  // CMS State
-  const [heroInput, setHeroInput] = useState('')
-  const [projectForm, setProjectForm] = useState<Partial<FeaturedProject>>({})
-  const [isEditingProject, setIsEditingProject] = useState(false)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
   const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false)
-  const [newGalleryImage, setNewGalleryImage] = useState('')
+  const [editingProject, setEditingProject] = useState<Partial<Project>>({})
+  const [mediaList, setMediaList] = useState<ProjectMedia[]>([])
+
+  // Media Form State
+  const [newMediaUrl, setNewMediaUrl] = useState('')
+  const [newMediaType, setNewMediaType] = useState<
+    'before' | 'after' | 'gallery'
+  >('gallery')
+  const [newMediaPlants, setNewMediaPlants] = useState('')
+  const [newMediaMaterials, setNewMediaMaterials] = useState('')
 
   useEffect(() => {
-    if (config?.heroImage) {
-      setHeroInput(config.heroImage)
-    }
-  }, [config])
-
-  // Auth Check
-  useEffect(() => {
-    const isAuth = localStorage.getItem('floresta_admin_auth') === 'true'
-    if (!isAuth) {
+    if (!authLoading && !user) {
       navigate('/admin/login')
     }
-  }, [navigate])
+  }, [user, authLoading, navigate])
 
-  const handleLogout = () => {
-    localStorage.removeItem('floresta_admin_auth')
+  useEffect(() => {
+    if (user) {
+      fetchProjects()
+    }
+  }, [user])
+
+  const fetchProjects = async () => {
+    setLoading(true)
+    const { data, error } = await projectsService.getProjects()
+    if (error) {
+      toast({ title: 'Erro ao carregar projetos', variant: 'destructive' })
+    } else {
+      setProjects(data || [])
+    }
+    setLoading(false)
+  }
+
+  const handleLogout = async () => {
+    await signOut()
     navigate('/admin/login')
-    toast({ title: 'Sessão encerrada' })
   }
 
-  // Prevent flash of content
-  if (localStorage.getItem('floresta_admin_auth') !== 'true') {
-    return null
-  }
-
-  const handleStatusChange = (id: string, status: OrderStatus) => {
-    updateOrderStatus(id, status)
-    if (selectedOrder && selectedOrder.id === id) {
-      setSelectedOrder({ ...selectedOrder, status })
-    }
-    toast({ title: 'Status atualizado!' })
-  }
-
-  const handleAdminUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (selectedOrder && e.target.files) {
-      const newImages = Array.from(e.target.files).map((file, i) => ({
-        title: `Imagem do Projeto ${i + 1}`,
-        url: URL.createObjectURL(file),
-      }))
-      updateOrderFinalImages(selectedOrder.id, newImages)
-      // Automatically set status to Enviado if it wasn't already
-      if (selectedOrder.status !== 'Enviado') {
-        updateOrderStatus(selectedOrder.id, 'Enviado')
-        setSelectedOrder({
-          ...selectedOrder,
-          finalImages: newImages,
-          status: 'Enviado',
-        })
-      } else {
-        setSelectedOrder({
-          ...selectedOrder,
-          finalImages: newImages,
-        })
-      }
-      toast({ title: 'Imagens enviadas e projeto atualizado!' })
-    }
-  }
-
-  const handleSaveHero = () => {
-    updateHeroImage(heroInput)
-    toast({ title: 'Imagem da capa atualizada!' })
-  }
-
-  const handleEditProject = (project: FeaturedProject) => {
-    setProjectForm({ ...project, images: project.images || [] })
-    setIsEditingProject(true)
-    setIsProjectDialogOpen(true)
-    setNewGalleryImage('')
-  }
-
-  const handleNewProject = () => {
-    setProjectForm({ images: [] })
-    setIsEditingProject(false)
-    setIsProjectDialogOpen(true)
-    setNewGalleryImage('')
-  }
-
-  const handleAddGalleryImage = () => {
-    if (!newGalleryImage) return
-    const currentImages = projectForm.images || []
-    setProjectForm({
-      ...projectForm,
-      images: [...currentImages, newGalleryImage],
-    })
-    setNewGalleryImage('')
-  }
-
-  const handleRemoveGalleryImage = (index: number) => {
-    const currentImages = projectForm.images || []
-    setProjectForm({
-      ...projectForm,
-      images: currentImages.filter((_, i) => i !== index),
-    })
-  }
-
-  const handleSaveProject = () => {
-    if (
-      !projectForm.title ||
-      !projectForm.description ||
-      !projectForm.before ||
-      !projectForm.after
-    ) {
-      toast({
-        title: 'Preencha todos os campos obrigatórios',
-        variant: 'destructive',
-      })
+  const handleSaveProject = async () => {
+    if (!editingProject.title) {
+      toast({ title: 'O título é obrigatório', variant: 'destructive' })
       return
     }
 
-    if (isEditingProject && projectForm.id) {
-      updateFeaturedProject(projectForm as FeaturedProject)
-      toast({ title: 'Projeto atualizado!' })
-    } else {
-      addFeaturedProject(projectForm as Omit<FeaturedProject, 'id'>)
-      toast({ title: 'Projeto adicionado!' })
+    try {
+      let savedProject: Project
+
+      if (editingProject.id) {
+        // Update
+        const { data, error } = await projectsService.updateProject(
+          editingProject.id,
+          editingProject,
+        )
+        if (error) throw error
+        savedProject = data
+        toast({ title: 'Projeto atualizado com sucesso' })
+      } else {
+        // Create
+        const { data, error } = await projectsService.createProject({
+          title: editingProject.title!,
+          description: editingProject.description || '',
+          client_name: editingProject.client_name || '',
+          is_featured: editingProject.is_featured || false,
+          status: editingProject.status || 'Em Andamento',
+        })
+        if (error) throw error
+        savedProject = data
+        toast({ title: 'Projeto criado com sucesso' })
+      }
+
+      setEditingProject(savedProject)
+      fetchProjects()
+      // Keep dialog open to add media
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao salvar projeto',
+        description: error.message,
+        variant: 'destructive',
+      })
     }
-    setIsProjectDialogOpen(false)
   }
 
-  const handleDeleteProject = (id: string) => {
-    if (confirm('Tem certeza que deseja remover este projeto?')) {
-      removeFeaturedProject(id)
-      toast({ title: 'Projeto removido' })
+  const handleDeleteProject = async (id: string) => {
+    if (
+      !confirm('Tem certeza? Isso apagará todas as fotos e dados do projeto.')
+    )
+      return
+
+    const { error } = await projectsService.deleteProject(id)
+    if (error) {
+      toast({ title: 'Erro ao excluir', variant: 'destructive' })
+    } else {
+      toast({ title: 'Projeto excluído' })
+      fetchProjects()
     }
   }
+
+  const handleAddMedia = async () => {
+    if (!editingProject.id || !newMediaUrl) return
+
+    try {
+      const { data, error } = await projectsService.addMedia({
+        project_id: editingProject.id,
+        url: newMediaUrl,
+        type: newMediaType,
+        plants_used: newMediaPlants,
+        materials_used: newMediaMaterials,
+      })
+      if (error) throw error
+
+      // Update local state
+      const updatedMedia = [...mediaList, data]
+      setMediaList(updatedMedia)
+
+      // Update project list state to reflect changes immediately
+      const updatedProjects = projects.map((p) =>
+        p.id === editingProject.id ? { ...p, media: updatedMedia } : p,
+      )
+      setProjects(updatedProjects)
+
+      // Reset form
+      setNewMediaUrl('')
+      setNewMediaPlants('')
+      setNewMediaMaterials('')
+      toast({ title: 'Mídia adicionada' })
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao adicionar mídia',
+        description: error.message,
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const handleDeleteMedia = async (id: string) => {
+    try {
+      const { error } = await projectsService.deleteMedia(id)
+      if (error) throw error
+
+      const updatedMedia = mediaList.filter((m) => m.id !== id)
+      setMediaList(updatedMedia)
+
+      const updatedProjects = projects.map((p) =>
+        p.id === editingProject.id ? { ...p, media: updatedMedia } : p,
+      )
+      setProjects(updatedProjects)
+    } catch (error: any) {
+      toast({ title: 'Erro ao remover mídia', variant: 'destructive' })
+    }
+  }
+
+  const openProjectDialog = (project?: Project) => {
+    if (project) {
+      setEditingProject(project)
+      setMediaList(project.media || [])
+    } else {
+      setEditingProject({ is_featured: false, status: 'Em Andamento' })
+      setMediaList([])
+    }
+    setIsProjectDialogOpen(true)
+  }
+
+  if (authLoading)
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin" />
+      </div>
+    )
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img
-              src={LOGO_URL}
-              alt="Viveiro Floresta Logo"
-              className="h-10 w-auto"
-            />
+            <img src={LOGO_URL} alt="Logo" className="h-10 w-auto" />
             <span className="font-bold text-lg text-gray-500 border-l pl-3">
-              Backoffice
+              CMS & Gestão
             </span>
           </div>
-          <Button variant="outline" onClick={handleLogout} className="gap-2">
-            <LogOut className="h-4 w-4" /> Sair
-          </Button>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-muted-foreground hidden sm:inline-block">
+              {user?.email}
+            </span>
+            <Button variant="outline" onClick={handleLogout} className="gap-2">
+              <LogOut className="h-4 w-4" /> Sair
+            </Button>
+          </div>
         </div>
       </header>
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-8">
-        <Tabs defaultValue="orders" className="space-y-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Projetos</h1>
+          <Button onClick={() => openProjectDialog()}>
+            <Plus className="h-4 w-4 mr-2" /> Novo Projeto
+          </Button>
+        </div>
+
+        <Tabs defaultValue="all" className="space-y-6">
           <TabsList>
-            <TabsTrigger value="orders">Pedidos</TabsTrigger>
-            <TabsTrigger value="cms">Gestão de Conteúdo (CMS)</TabsTrigger>
+            <TabsTrigger value="all">Todos</TabsTrigger>
+            <TabsTrigger value="featured">Home (Destaques)</TabsTrigger>
+            <TabsTrigger value="clients">Clientes</TabsTrigger>
           </TabsList>
 
-          {/* Orders Tab */}
-          <TabsContent value="orders">
+          <TabsContent value="all" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Gerenciamento de Pedidos</CardTitle>
-                <CardDescription>
-                  Acompanhe e atualize o status dos projetos.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+              <CardContent className="p-0">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ID</TableHead>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead>Plano</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Data</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {orders.map((order) => (
-                      <TableRow key={order.id}>
-                        <TableCell className="font-mono text-xs">
-                          {order.id}
-                        </TableCell>
-                        <TableCell>{order.clientName}</TableCell>
-                        <TableCell>{order.plan}</TableCell>
-                        <TableCell>
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
-                              order.status === 'Enviado'
-                                ? 'bg-green-100 text-green-800'
-                                : order.status === 'Em Produção'
-                                  ? 'bg-orange-100 text-orange-800'
-                                  : 'bg-blue-100 text-blue-800'
-                            }`}
-                          >
-                            {order.status}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {new Date(order.createdAt).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setSelectedOrder(order)}
-                              >
-                                <Eye className="h-4 w-4 mr-2" /> Detalhes
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                              <DialogHeader>
-                                <DialogTitle>
-                                  Detalhes do Pedido #{selectedOrder?.id}
-                                </DialogTitle>
-                              </DialogHeader>
-                              {selectedOrder && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                  <div className="space-y-6">
-                                    <div className="bg-gray-50 p-4 rounded-lg border space-y-3">
-                                      <h3 className="font-semibold flex items-center gap-2">
-                                        Dados do Cliente
-                                      </h3>
-                                      <div className="grid grid-cols-2 gap-4 text-sm">
-                                        <div>
-                                          <p className="text-muted-foreground">
-                                            Nome
-                                          </p>
-                                          <p className="font-medium">
-                                            {selectedOrder.clientName}
-                                          </p>
-                                        </div>
-                                        <div>
-                                          <p className="text-muted-foreground">
-                                            WhatsApp
-                                          </p>
-                                          <p className="font-medium">
-                                            {selectedOrder.clientWhatsapp}
-                                          </p>
-                                        </div>
-                                        <div className="col-span-2">
-                                          <p className="text-muted-foreground">
-                                            Email
-                                          </p>
-                                          <p className="font-medium">
-                                            {selectedOrder.clientEmail}
-                                          </p>
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    <div className="space-y-3">
-                                      <h3 className="font-semibold">
-                                        Informações do Projeto
-                                      </h3>
-                                      <div className="space-y-2 text-sm border p-4 rounded-lg">
-                                        <p>
-                                          <strong>Tipo:</strong>{' '}
-                                          {selectedOrder.propertyType}
-                                        </p>
-                                        <p>
-                                          <strong>Medidas:</strong>{' '}
-                                          {selectedOrder.dimensions ||
-                                            'Não informado'}
-                                        </p>
-                                        <p>
-                                          <strong>Preferências:</strong>{' '}
-                                          {selectedOrder.preferences ||
-                                            'Nenhuma'}
-                                        </p>
-                                        <p>
-                                          <strong>Observações:</strong>{' '}
-                                          {selectedOrder.notes || 'Nenhuma'}
-                                        </p>
-                                      </div>
-                                    </div>
-
-                                    <div>
-                                      <h3 className="font-semibold mb-2">
-                                        Fotos enviadas pelo cliente
-                                      </h3>
-                                      <div className="flex gap-2 overflow-x-auto pb-2">
-                                        {selectedOrder.photos.map(
-                                          (photo, i) => (
-                                            <a
-                                              key={i}
-                                              href={photo}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                            >
-                                              <img
-                                                src={photo}
-                                                alt={`Cliente ${i}`}
-                                                className="h-24 w-24 object-cover rounded-md border hover:opacity-80 transition-opacity"
-                                              />
-                                            </a>
-                                          ),
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div className="space-y-6">
-                                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 space-y-4">
-                                      <h3 className="font-semibold text-blue-900">
-                                        Gerenciar Status
-                                      </h3>
-                                      <div>
-                                        <Label>Status Atual</Label>
-                                        <Select
-                                          value={selectedOrder.status}
-                                          onValueChange={(val: OrderStatus) =>
-                                            handleStatusChange(
-                                              selectedOrder.id,
-                                              val,
-                                            )
-                                          }
-                                        >
-                                          <SelectTrigger className="bg-white">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="Recebido">
-                                              Recebido
-                                            </SelectItem>
-                                            <SelectItem value="Aguardando Pagamento">
-                                              Aguardando Pagamento
-                                            </SelectItem>
-                                            <SelectItem value="Em Produção">
-                                              Em Produção
-                                            </SelectItem>
-                                            <SelectItem value="Enviado">
-                                              Enviado (Finalizado)
-                                            </SelectItem>
-                                            <SelectItem value="Cancelado">
-                                              Cancelado
-                                            </SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
-                                    </div>
-
-                                    <div className="border-t pt-4">
-                                      <h3 className="font-semibold mb-2 flex items-center gap-2">
-                                        <Upload className="h-4 w-4" /> Entrega
-                                        do Projeto
-                                      </h3>
-                                      <p className="text-sm text-muted-foreground mb-4">
-                                        Faça upload das imagens finais aqui. O
-                                        status mudará automaticamente para
-                                        "Enviado".
-                                      </p>
-
-                                      <div className="flex items-center gap-4">
-                                        <Input
-                                          type="file"
-                                          multiple
-                                          accept="image/*"
-                                          onChange={handleAdminUpload}
-                                        />
-                                      </div>
-
-                                      {selectedOrder.finalImages &&
-                                        selectedOrder.finalImages.length >
-                                          0 && (
-                                          <div className="mt-4">
-                                            <p className="text-sm font-medium text-green-600 mb-2">
-                                              {selectedOrder.finalImages.length}{' '}
-                                              imagens disponíveis para o
-                                              cliente:
-                                            </p>
-                                            <div className="grid grid-cols-3 gap-2">
-                                              {selectedOrder.finalImages.map(
-                                                (img, i) => (
-                                                  <img
-                                                    key={i}
-                                                    src={img.url}
-                                                    className="w-full h-20 object-cover rounded border"
-                                                  />
-                                                ),
-                                              )}
-                                            </div>
-                                          </div>
-                                        )}
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </DialogContent>
-                          </Dialog>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* CMS Tab */}
-          <TabsContent value="cms" className="space-y-6">
-            {/* Hero Image Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Imagem da Capa (Home)</CardTitle>
-                <CardDescription>
-                  A imagem principal que aparece no topo da página inicial.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col md:flex-row gap-6 items-start">
-                  <div className="w-full md:w-1/2">
-                    <img
-                      src={heroInput}
-                      alt="Hero Preview"
-                      className="w-full h-48 object-cover rounded-lg border bg-gray-100"
-                      onError={(e) =>
-                        (e.currentTarget.src =
-                          'https://via.placeholder.com/800x400?text=Erro+na+Imagem')
-                      }
-                    />
-                  </div>
-                  <div className="w-full md:w-1/2 space-y-4">
-                    <div className="space-y-2">
-                      <Label>URL da Imagem</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          value={heroInput}
-                          onChange={(e) => setHeroInput(e.target.value)}
-                          placeholder="https://..."
-                        />
-                        <Button onClick={handleSaveHero}>
-                          <Save className="h-4 w-4 mr-2" /> Salvar
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Recomendado: 1920x1080px. Use uma URL pública de imagem.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Featured Projects Section */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Projetos em Destaque</CardTitle>
-                  <CardDescription>
-                    Gerencie a seção "Antes e Depois" e galeria de projetos da
-                    home.
-                  </CardDescription>
-                </div>
-                <Button onClick={handleNewProject}>
-                  <Plus className="h-4 w-4 mr-2" /> Novo Projeto
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Imagem</TableHead>
                       <TableHead>Título</TableHead>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead>Galeria</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Destaque</TableHead>
+                      <TableHead>Mídia</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {config?.featuredProjects?.map((project) => (
-                      <TableRow key={project.id}>
-                        <TableCell>
-                          <img
-                            src={
-                              project.after || 'https://via.placeholder.com/100'
-                            }
-                            className="w-16 h-12 object-cover rounded border"
-                            alt={project.title}
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {project.title}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground max-w-md truncate">
-                          {project.description}
-                        </TableCell>
-                        <TableCell>
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                            <ImageIcon className="h-3 w-3" />{' '}
-                            {project.images?.length || 0} fotos
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => handleEditProject(project)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="icon"
-                              onClick={() => handleDeleteProject(project.id)}
-                            >
-                              <Trash className="h-4 w-4" />
-                            </Button>
-                          </div>
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8">
+                          <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                         </TableCell>
                       </TableRow>
-                    ))}
-                    {(!config?.featuredProjects ||
-                      config.featuredProjects.length === 0) && (
+                    ) : projects.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={5}
+                          colSpan={6}
                           className="text-center py-8 text-muted-foreground"
                         >
-                          Nenhum projeto em destaque. Adicione um para exibir na
-                          home.
+                          Nenhum projeto encontrado.
                         </TableCell>
                       </TableRow>
+                    ) : (
+                      projects.map((project) => (
+                        <TableRow key={project.id}>
+                          <TableCell className="font-medium">
+                            {project.title}
+                          </TableCell>
+                          <TableCell>{project.client_name || '-'}</TableCell>
+                          <TableCell>
+                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
+                              {project.status}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {project.is_featured ? '⭐ Sim' : 'Não'}
+                          </TableCell>
+                          <TableCell>
+                            {project.media?.length || 0} fotos
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openProjectDialog(project)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                                onClick={() => handleDeleteProject(project.id)}
+                              >
+                                <Trash className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
                     )}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
           </TabsContent>
-        </Tabs>
-      </main>
 
-      {/* Dialog for Add/Edit Project */}
-      <Dialog open={isProjectDialogOpen} onOpenChange={setIsProjectDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {isEditingProject ? 'Editar Projeto' : 'Novo Projeto em Destaque'}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <TabsContent value="featured">
+            <div className="text-sm text-muted-foreground mb-4">
+              Projetos marcados como "Destaque" aparecem na página inicial.
+            </div>
+            {/* Reusing same table logic but filtered could be done here if needed */}
+            {projects.filter((p) => p.is_featured).length === 0 && (
+              <div className="text-center py-10 bg-white rounded-lg border">
+                Nenhum projeto em destaque. Edite um projeto e marque "Destaque
+                na Home".
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+
+        <Dialog
+          open={isProjectDialogOpen}
+          onOpenChange={setIsProjectDialogOpen}
+        >
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {editingProject.id ? 'Editar Projeto' : 'Novo Projeto'}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4">
+              {/* Left Column: Project Details */}
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Título do Projeto</Label>
                   <Input
-                    value={projectForm.title || ''}
+                    value={editingProject.title || ''}
                     onChange={(e) =>
-                      setProjectForm({ ...projectForm, title: e.target.value })
+                      setEditingProject({
+                        ...editingProject,
+                        title: e.target.value,
+                      })
                     }
-                    placeholder="Ex: Jardim Tropical"
+                    placeholder="Ex: Jardim Tropical da Família Silva"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Breve Descrição</Label>
-                  <Textarea
-                    value={projectForm.description || ''}
+                  <Label>Nome do Cliente (Opcional)</Label>
+                  <Input
+                    value={editingProject.client_name || ''}
                     onChange={(e) =>
-                      setProjectForm({
-                        ...projectForm,
+                      setEditingProject({
+                        ...editingProject,
+                        client_name: e.target.value,
+                      })
+                    }
+                    placeholder="Ex: João da Silva"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select
+                      value={editingProject.status}
+                      onValueChange={(val) =>
+                        setEditingProject({ ...editingProject, status: val })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Em Andamento">
+                          Em Andamento
+                        </SelectItem>
+                        <SelectItem value="Concluído">Concluído</SelectItem>
+                        <SelectItem value="Cancelado">Cancelado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-end pb-2">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingProject.is_featured || false}
+                        onChange={(e) =>
+                          setEditingProject({
+                            ...editingProject,
+                            is_featured: e.target.checked,
+                          })
+                        }
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                      <span className="text-sm font-medium">
+                        Destaque na Home
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Descrição</Label>
+                  <Textarea
+                    value={editingProject.description || ''}
+                    onChange={(e) =>
+                      setEditingProject({
+                        ...editingProject,
                         description: e.target.value,
                       })
                     }
-                    placeholder="Descreva a transformação..."
-                    rows={4}
+                    placeholder="Detalhes sobre o projeto..."
+                    rows={5}
                   />
                 </div>
-              </div>
 
-              <div className="space-y-4">
-                <Label>Comparação Antes/Depois</Label>
-                <div className="space-y-3 p-4 bg-muted/20 rounded-lg border">
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">
-                      Foto "Antes" (URL)
-                    </Label>
-                    <Input
-                      value={projectForm.before || ''}
-                      onChange={(e) =>
-                        setProjectForm({
-                          ...projectForm,
-                          before: e.target.value,
-                        })
-                      }
-                      placeholder="https://..."
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">
-                      Foto "Depois" (URL)
-                    </Label>
-                    <Input
-                      value={projectForm.after || ''}
-                      onChange={(e) =>
-                        setProjectForm({
-                          ...projectForm,
-                          after: e.target.value,
-                        })
-                      }
-                      placeholder="https://..."
-                    />
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    {projectForm.before && (
-                      <img
-                        src={projectForm.before}
-                        className="w-12 h-12 object-cover rounded bg-white border"
-                      />
-                    )}
-                    {projectForm.after && (
-                      <img
-                        src={projectForm.after}
-                        className="w-12 h-12 object-cover rounded bg-white border"
-                      />
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4 border-t pt-4">
-              <Label className="flex items-center gap-2">
-                <ImageIcon className="h-4 w-4" /> Galeria de Imagens Adicionais
-              </Label>
-
-              <div className="flex gap-2">
-                <Input
-                  value={newGalleryImage}
-                  onChange={(e) => setNewGalleryImage(e.target.value)}
-                  placeholder="Cole a URL da imagem aqui..."
-                  className="flex-1"
-                />
-                <Button
-                  type="button"
-                  onClick={handleAddGalleryImage}
-                  variant="secondary"
-                >
-                  Adicionar
+                <Button onClick={handleSaveProject} className="w-full">
+                  <Save className="h-4 w-4 mr-2" /> Salvar Detalhes
                 </Button>
               </div>
 
-              {projectForm.images && projectForm.images.length > 0 ? (
-                <div className="grid grid-cols-4 md:grid-cols-6 gap-4">
-                  {projectForm.images.map((img, idx) => (
-                    <div
-                      key={idx}
-                      className="relative group aspect-square rounded-md overflow-hidden bg-gray-100 border"
-                    >
-                      <img
-                        src={img}
-                        className="w-full h-full object-cover"
-                        alt={`Galeria ${idx}`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveGalleryImage(idx)}
-                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
+              {/* Right Column: Media Management */}
+              <div className="space-y-4 border-l pl-0 md:pl-8">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-lg flex items-center gap-2">
+                    <ImageIcon className="h-5 w-5" /> Mídia & Detalhes
+                  </h3>
+                  {!editingProject.id && (
+                    <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                      Salve o projeto primeiro
+                    </span>
+                  )}
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-4 bg-muted/20 rounded border border-dashed">
-                  Nenhuma imagem adicional na galeria.
-                </p>
-              )}
+
+                {editingProject.id ? (
+                  <div className="space-y-4">
+                    <div className="bg-muted/30 p-4 rounded-lg space-y-3 border">
+                      <div className="space-y-2">
+                        <Label>URL da Imagem</Label>
+                        <Input
+                          value={newMediaUrl}
+                          onChange={(e) => setNewMediaUrl(e.target.value)}
+                          placeholder="https://..."
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Tipo</Label>
+                          <Select
+                            value={newMediaType}
+                            onValueChange={(val: any) => setNewMediaType(val)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="gallery">Galeria</SelectItem>
+                              <SelectItem value="before">Antes</SelectItem>
+                              <SelectItem value="after">Depois</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Plantas (Opcional)</Label>
+                          <Input
+                            value={newMediaPlants}
+                            onChange={(e) => setNewMediaPlants(e.target.value)}
+                            placeholder="Ex: Palmeiras, Bromélias"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Materiais (Opcional)</Label>
+                        <Input
+                          value={newMediaMaterials}
+                          onChange={(e) => setNewMediaMaterials(e.target.value)}
+                          placeholder="Ex: Madeira Cumaru, Pedra Seixo"
+                        />
+                      </div>
+
+                      <Button
+                        onClick={handleAddMedia}
+                        size="sm"
+                        variant="secondary"
+                        className="w-full"
+                      >
+                        Adicionar Foto
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2">
+                      {mediaList.map((media) => (
+                        <div
+                          key={media.id}
+                          className="relative group border rounded-lg overflow-hidden bg-white shadow-sm"
+                        >
+                          <img
+                            src={media.url}
+                            className="w-full h-32 object-cover"
+                          />
+                          <div className="p-2 text-xs">
+                            <div className="font-bold uppercase text-[10px] text-primary mb-1">
+                              {media.type}
+                            </div>
+                            {(media.plants_used || media.materials_used) && (
+                              <div className="flex gap-1 flex-wrap">
+                                {media.plants_used && (
+                                  <Leaf className="h-3 w-3 text-green-600" />
+                                )}
+                                {media.materials_used && (
+                                  <Hammer className="h-3 w-3 text-stone-600" />
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            onClick={() =>
+                              media.id && handleDeleteMedia(media.id)
+                            }
+                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-48 bg-gray-50 rounded-lg border border-dashed text-muted-foreground text-sm">
+                    Preencha os dados e salve para adicionar fotos.
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsProjectDialogOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button onClick={handleSaveProject}>Salvar Projeto</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      </main>
     </div>
   )
 }
