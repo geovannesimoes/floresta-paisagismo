@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   LogOut,
@@ -74,6 +74,17 @@ export default function Admin() {
   const [newMediaPlants, setNewMediaPlants] = useState('')
   const [newMediaMaterials, setNewMediaMaterials] = useState('')
 
+  const fetchProjects = useCallback(async () => {
+    setLoading(true)
+    const { data, error } = await projectsService.getProjects()
+    if (error) {
+      toast({ title: 'Erro ao carregar projetos', variant: 'destructive' })
+    } else {
+      setProjects(data || [])
+    }
+    setLoading(false)
+  }, [toast])
+
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/admin/login')
@@ -84,18 +95,7 @@ export default function Admin() {
     if (user) {
       fetchProjects()
     }
-  }, [user])
-
-  const fetchProjects = async () => {
-    setLoading(true)
-    const { data, error } = await projectsService.getProjects()
-    if (error) {
-      toast({ title: 'Erro ao carregar projetos', variant: 'destructive' })
-    } else {
-      setProjects(data || [])
-    }
-    setLoading(false)
-  }
+  }, [user, fetchProjects])
 
   const handleLogout = async () => {
     await signOut()
