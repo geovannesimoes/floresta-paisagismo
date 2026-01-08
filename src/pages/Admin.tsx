@@ -12,6 +12,7 @@ import {
   Leaf,
   Hammer,
   Upload,
+  Settings,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,7 +40,7 @@ import {
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
 import { LOGO_URL } from '@/lib/constants'
@@ -48,11 +49,14 @@ import {
   Project,
   ProjectMedia,
 } from '@/services/projectsService'
+import { siteSettingsService } from '@/services/siteSettingsService'
+import { useSiteSettings } from '@/hooks/use-site-settings'
 
 export default function Admin() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { signOut, user, loading: authLoading } = useAuth()
+  const { settings, refreshSettings } = useSiteSettings()
 
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
@@ -70,6 +74,11 @@ export default function Admin() {
   const [newMediaMaterials, setNewMediaMaterials] = useState('')
   const [newMediaDescription, setNewMediaDescription] = useState('')
   const [isUploading, setIsUploading] = useState(false)
+
+  // Settings State
+  const [isSettingsUploading, setIsSettingsUploading] = useState(false)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [heroFile, setHeroFile] = useState<File | null>(null)
 
   const fetchProjects = useCallback(async () => {
     setLoading(true)
@@ -234,6 +243,42 @@ export default function Admin() {
     setNewMediaUrl('')
   }
 
+  const handleUpdateSettings = async (type: 'logo' | 'hero') => {
+    const file = type === 'logo' ? logoFile : heroFile
+    if (!file || !settings?.id) return
+
+    setIsSettingsUploading(true)
+    try {
+      const { url, error } = await siteSettingsService.uploadAsset(file)
+      if (error || !url) throw error || new Error('Upload failed')
+
+      const updates =
+        type === 'logo' ? { logo_url: url } : { hero_image_url: url }
+      const { error: updateError } = await siteSettingsService.updateSettings(
+        settings.id,
+        updates,
+      )
+
+      if (updateError) throw updateError
+
+      toast({
+        title: type === 'logo' ? 'Logo atualizado' : 'Imagem Hero atualizada',
+      })
+      if (type === 'logo') setLogoFile(null)
+      else setHeroFile(null)
+
+      refreshSettings()
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao atualizar',
+        description: error.message,
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSettingsUploading(false)
+    }
+  }
+
   if (authLoading)
     return (
       <div className="h-screen flex items-center justify-center">
@@ -249,7 +294,11 @@ export default function Admin() {
             to="/"
             className="flex items-center gap-3 hover:opacity-80 transition-opacity"
           >
-            <img src={LOGO_URL} alt="Logo" className="h-10 w-auto" />
+            <img
+              src={settings?.logo_url || LOGO_URL}
+              alt="Logo"
+              className="h-10 w-auto"
+            />
             <span className="font-bold text-lg text-gray-500 border-l pl-3">
               CMS & Gestão
             </span>
@@ -267,19 +316,22 @@ export default function Admin() {
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-8">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Projetos</h1>
+          <h1 className="text-2xl font-bold">Painel Administrativo</h1>
           <Button onClick={() => openProjectDialog()}>
             <Plus className="h-4 w-4 mr-2" /> Novo Projeto
           </Button>
         </div>
 
-        <Tabs defaultValue="all" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="all">Todos</TabsTrigger>
-            <TabsTrigger value="featured">Home (Destaques)</TabsTrigger>
+        <Tabs defaultValue="projects" className="space-y-6">
+          <TabsList className="bg-white border">
+            <TabsTrigger value="projects">Projetos</TabsTrigger>
+            <TabsTrigger value="settings">
+              <Settings className="h-4 w-4 mr-2" />
+              Configurações do Site
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="all" className="space-y-4">
+          <TabsContent value="projects" className="space-y-4">
             <Card>
               <CardContent className="p-0">
                 <Table>
@@ -350,15 +402,85 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="featured">
-            <div className="text-sm text-muted-foreground mb-4">
-              Projetos em destaque aparecem na Home.
+          <TabsContent value="settings" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Logo da Empresa</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="p-6 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <img
+                      src={settings?.logo_url || LOGO_URL}
+                      alt="Logo atual"
+                      className="max-h-20 w-auto"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Novo Logo</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="file"
+                        accept="image/png, image/jpeg, image/svg+xml"
+                        onChange={(e) =>
+                          setLogoFile(e.target.files?.[0] || null)
+                        }
+                      />
+                      <Button
+                        onClick={() => handleUpdateSettings('logo')}
+                        disabled={!logoFile || isSettingsUploading}
+                      >
+                        {isSettingsUploading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Upload className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Imagem de Capa (Hero)</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="aspect-video w-full bg-gray-100 rounded-lg overflow-hidden relative">
+                    <img
+                      src={
+                        settings?.hero_image_url ||
+                        'https://img.usecurling.com/p/1920/1080?q=garden&dpr=2'
+                      }
+                      alt="Hero atual"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Nova Imagem</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="file"
+                        accept="image/png, image/jpeg, image/webp"
+                        onChange={(e) =>
+                          setHeroFile(e.target.files?.[0] || null)
+                        }
+                      />
+                      <Button
+                        onClick={() => handleUpdateSettings('hero')}
+                        disabled={!heroFile || isSettingsUploading}
+                      >
+                        {isSettingsUploading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Upload className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-            {projects.filter((p) => p.is_featured).length === 0 && (
-              <div className="text-center py-10 bg-white rounded-lg border">
-                Nenhum projeto em destaque.
-              </div>
-            )}
           </TabsContent>
         </Tabs>
 

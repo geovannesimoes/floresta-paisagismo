@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom'
 import { Check, Camera, CreditCard, Download, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ProjectCard } from '@/components/ProjectCard'
-import { useStore } from '@/lib/store'
 import { projectsService, Project } from '@/services/projectsService'
+import { useSiteSettings } from '@/hooks/use-site-settings'
 
 export default function Index() {
-  const { config } = useStore()
+  const { settings } = useSiteSettings()
   const [featuredProjects, setFeaturedProjects] = useState<Project[]>([])
 
   useEffect(() => {
@@ -53,16 +53,17 @@ export default function Index() {
     },
   ]
 
+  const heroImage =
+    settings?.hero_image_url ||
+    'https://img.usecurling.com/p/1920/1080?q=garden&dpr=2'
+
   return (
     <div className="flex flex-col">
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img
-            src={
-              config?.heroImage ||
-              'https://img.usecurling.com/p/1920/1080?q=garden&dpr=2'
-            }
+            src={heroImage}
             alt="Jardim exuberante"
             className="w-full h-full object-cover brightness-[0.6]"
           />

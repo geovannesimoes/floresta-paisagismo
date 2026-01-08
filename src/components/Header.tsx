@@ -5,11 +5,13 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 import { useScroll } from '@/hooks/use-scroll'
 import { LOGO_URL } from '@/lib/constants'
+import { useSiteSettings } from '@/hooks/use-site-settings'
 
 export function Header() {
   const scrolled = useScroll(50)
   const location = useLocation()
   const isHome = location.pathname === '/'
+  const { settings } = useSiteSettings()
 
   const navLinks = [
     { name: 'Início', path: '/' },
@@ -17,6 +19,8 @@ export function Header() {
     { name: 'Projetos', path: '/projetos' },
     { name: 'Área do Cliente', path: '/area-cliente' },
   ]
+
+  const logoUrl = settings?.logo_url || LOGO_URL
 
   return (
     <header
@@ -30,44 +34,48 @@ export function Header() {
       <div className="container mx-auto px-4 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 group">
           <img
-            src={LOGO_URL}
+            src={logoUrl}
             alt="Viveiro Floresta Logo"
             className={cn(
               'h-12 w-auto transition-all duration-300',
-              !scrolled && isHome ? 'brightness-0 invert' : '',
+              !scrolled && isHome && !settings?.logo_url
+                ? 'brightness-0 invert'
+                : '',
             )}
           />
         </Link>
 
         {/* Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-8">
-          {navLinks.map((link) => (
-            <Link
-              key={link.path}
-              to={link.path}
-              className={cn(
-                'text-sm font-medium transition-colors hover:text-primary relative group',
-                scrolled || !isHome
-                  ? 'text-foreground'
-                  : 'text-white hover:text-white/80',
-                location.pathname === link.path && 'font-bold text-primary',
-              )}
-            >
-              {link.name}
-              <span
+        <nav className="hidden md:flex items-center gap-2">
+          {navLinks.map((link) => {
+            const isActive = location.pathname === link.path
+            return (
+              <Link
+                key={link.path}
+                to={link.path}
                 className={cn(
-                  'absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full',
-                  location.pathname === link.path && 'w-full',
+                  'text-sm font-medium transition-all px-4 py-2 rounded-full',
+                  isActive
+                    ? scrolled || !isHome
+                      ? 'bg-primary/10 text-primary font-bold'
+                      : 'bg-white text-primary font-bold shadow-md'
+                    : scrolled || !isHome
+                      ? 'text-foreground hover:bg-muted'
+                      : 'text-white hover:bg-white/20',
                 )}
-              ></span>
-            </Link>
-          ))}
-          <Button
-            asChild
-            className="bg-primary hover:bg-forest text-white shadow-lg hover:shadow-xl transition-all hover:scale-105"
-          >
-            <Link to="/planos">Escolher meu plano</Link>
-          </Button>
+              >
+                {link.name}
+              </Link>
+            )
+          })}
+          <div className="ml-4">
+            <Button
+              asChild
+              className="bg-primary hover:bg-forest text-white shadow-lg hover:shadow-xl transition-all hover:scale-105 rounded-full"
+            >
+              <Link to="/planos">Escolher meu plano</Link>
+            </Button>
+          </div>
         </nav>
 
         {/* Mobile Nav */}
@@ -87,7 +95,12 @@ export function Header() {
                 <Link
                   key={link.path}
                   to={link.path}
-                  className="text-lg font-medium text-foreground hover:text-primary transition-colors border-b pb-2"
+                  className={cn(
+                    'text-lg font-medium transition-colors border-b pb-2',
+                    location.pathname === link.path
+                      ? 'text-primary border-primary font-bold'
+                      : 'text-foreground hover:text-primary',
+                  )}
                 >
                   {link.name}
                 </Link>

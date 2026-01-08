@@ -9,6 +9,7 @@ import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import Layout from './components/Layout'
 import { AuthProvider } from './hooks/use-auth'
+import { SiteSettingsProvider } from './hooks/use-site-settings'
 
 import Index from './pages/Index'
 import Planos from './pages/Planos'
@@ -24,10 +25,12 @@ import NotFound from './pages/NotFound'
 const RootWrapper = () => {
   return (
     <AuthProvider>
-      <ScrollRestoration />
-      <Toaster />
-      <Sonner />
-      <Outlet />
+      <SiteSettingsProvider>
+        <ScrollRestoration />
+        <Toaster />
+        <Sonner />
+        <Outlet />
+      </SiteSettingsProvider>
     </AuthProvider>
   )
 }
