@@ -1,12 +1,30 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, Camera, CreditCard, Download, ArrowRight } from 'lucide-react'
+import {
+  Check,
+  Camera,
+  CreditCard,
+  Download,
+  ArrowRight,
+  Leaf,
+  Sprout,
+  TreePine,
+  Image as ImageIcon,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ProjectCard } from '@/components/ProjectCard'
 import { projectsService, Project } from '@/services/projectsService'
 import { useSiteSettings } from '@/hooks/use-site-settings'
+import { useSeo } from '@/hooks/use-seo'
 
 export default function Index() {
+  useSeo({
+    title: 'Floresta Paisagismo | Projetos Paisagísticos Online',
+    description:
+      'Transforme seu jardim com projetos de paisagismo online. Profissionais especializados, entrega rápida e planos acessíveis para todo o Brasil.',
+    canonical: window.location.origin,
+  })
+
   const { settings } = useSiteSettings()
   const [featuredProjects, setFeaturedProjects] = useState<Project[]>([])
 
@@ -30,168 +48,199 @@ export default function Index() {
     return { before, after }
   }
 
+  // 3-Step Visual Guide
   const steps = [
     {
-      icon: <Check className="h-8 w-8 text-primary" />,
-      title: '1. Escolha o plano',
-      desc: 'Selecione o pacote que melhor atende às suas necessidades.',
+      icon: <Leaf className="h-10 w-10 text-primary" />,
+      title: '1. Escolha seu Plano',
+      desc: 'Selecione o pacote Lírio, Ipê ou Jasmim ideal para o seu espaço e orçamento.',
     },
     {
-      icon: <Camera className="h-8 w-8 text-primary" />,
-      title: '2. Envie fotos',
-      desc: 'Compartilhe fotos e detalhes do seu espaço para personalizarmos o projeto.',
+      icon: <Camera className="h-10 w-10 text-primary" />,
+      title: '2. Envie suas Fotos',
+      desc: 'Compartilhe fotos e medidas do seu ambiente para criarmos algo sob medida.',
     },
     {
-      icon: <CreditCard className="h-8 w-8 text-primary" />,
-      title: '3. Pagamento Seguro',
-      desc: 'Pague via Pix ou Cartão para iniciarmos seu projeto.',
-    },
-    {
-      icon: <Download className="h-8 w-8 text-primary" />,
-      title: '4. Receba e Baixe',
-      desc: 'Acesse seu projeto finalizado em até 7 dias e baixe as imagens.',
+      icon: <Sprout className="h-10 w-10 text-primary" />,
+      title: '3. Receba o Projeto',
+      desc: 'Em poucos dias, receba seu projeto completo com lista de plantas e instruções.',
     },
   ]
 
   const heroImage =
     settings?.hero_image_url ||
-    'https://img.usecurling.com/p/1920/1080?q=garden&dpr=2'
+    'https://img.usecurling.com/p/1920/1080?q=luxury%20tropical%20garden&dpr=2'
 
   return (
-    <div className="flex flex-col">
-      {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
+    <div className="flex flex-col bg-background font-body">
+      {/* 1. Hero Section */}
+      <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img
             src={heroImage}
             alt="Jardim exuberante"
-            className="w-full h-full object-cover brightness-[0.6]"
+            className="w-full h-full object-cover brightness-[0.55]"
           />
         </div>
 
         <div className="relative z-10 container mx-auto px-4 text-center text-white pt-20">
-          <h1 className="text-4xl md:text-6xl font-heading font-bold mb-6 animate-fade-in-up leading-tight">
-            Transforme seu imóvel com um <br className="hidden md:block" />
-            projeto paisagístico sob medida
+          <h1 className="text-4xl md:text-6xl lg:text-7xl font-heading font-bold mb-8 animate-fade-in-up leading-tight tracking-tight">
+            Seu refúgio particular <br className="hidden md:block" />
+            começa com um bom projeto
           </h1>
-          <p className="text-lg md:text-xl mb-10 text-white/90 max-w-2xl mx-auto animate-fade-in-up delay-100">
-            Designs personalizados que trazem vida, valorização e beleza ao seu
-            espaço, entregues 100% online.
+          <p className="text-lg md:text-2xl mb-12 text-white/90 max-w-3xl mx-auto animate-fade-in-up delay-100 font-light leading-relaxed">
+            Paisagismo profissional, 100% online e acessível.
+            <br />
+            Transformamos seu espaço em um ambiente vivo e acolhedor.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-up delay-200">
+          <div className="flex flex-col sm:flex-row gap-6 justify-center animate-fade-in-up delay-200">
             <Button
               asChild
               size="lg"
-              className="bg-primary hover:bg-forest text-white text-lg h-14 px-8 rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all"
+              className="bg-primary hover:bg-forest text-white text-lg h-16 px-10 rounded-full shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-300 font-bold tracking-wide"
             >
-              <Link to="/planos">Escolher meu plano</Link>
+              <Link to="/planos">Começar Transformação</Link>
             </Button>
             <Button
               asChild
               variant="outline"
               size="lg"
-              className="bg-transparent border-2 border-white text-white hover:bg-white hover:text-primary text-lg h-14 px-8 rounded-full shadow-lg hover:scale-105 transition-all"
+              className="bg-transparent border-2 border-white text-white hover:bg-white hover:text-primary text-lg h-16 px-10 rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 backdrop-blur-sm"
             >
-              <Link to="/projetos">Ver projetos reais</Link>
+              <Link to="/projetos">Ver Portfólio</Link>
             </Button>
           </div>
         </div>
       </section>
 
-      {/* Featured Projects */}
-      <section className="py-20 bg-accent/20">
+      {/* 2. How it works */}
+      <section className="py-24 bg-white relative">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-heading font-bold text-foreground mb-4">
-              Projetos em Destaque
+          <div className="text-center mb-20">
+            <h2 className="text-3xl md:text-5xl font-heading font-bold text-foreground mb-6">
+              Como Funciona
             </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Confira algumas das transformações incríveis que realizamos.
+            <p className="text-xl text-muted-foreground font-light max-w-2xl mx-auto">
+              Simplicidade e eficiência para tirar seu sonho do papel.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {featuredProjects.slice(0, 3).map((project, index) => {
-              const { before, after } = getProjectImages(project)
-              return (
-                <Link
-                  key={project.id}
-                  to={`/projetos/${project.id}`}
-                  className="block animate-fade-in-up hover:no-underline"
-                  style={{ animationDelay: `${index * 150}ms` }}
-                >
-                  <ProjectCard
-                    title={project.title}
-                    description={project.description}
-                    beforeImage={before}
-                    afterImage={after}
-                  />
-                </Link>
-              )
-            })}
-
-            {featuredProjects.length === 0 && (
-              <div className="col-span-3 text-center py-12 bg-white rounded-xl shadow-sm">
-                <p className="text-muted-foreground">
-                  Nenhum projeto em destaque no momento.
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-6xl mx-auto relative z-10">
+            {steps.map((step, index) => (
+              <div
+                key={index}
+                className="flex flex-col items-center text-center group"
+              >
+                <div className="mb-8 p-6 bg-accent/30 rounded-3xl text-primary group-hover:scale-110 transition-transform duration-300 shadow-sm border border-accent/50">
+                  {step.icon}
+                </div>
+                <h3 className="text-2xl font-bold mb-4 font-heading text-foreground">
+                  {step.title}
+                </h3>
+                <p className="text-base text-muted-foreground leading-relaxed px-4">
+                  {step.desc}
                 </p>
               </div>
-            )}
+            ))}
           </div>
 
-          <div className="text-center mt-12">
-            <Button asChild variant="link" className="text-primary text-lg">
-              <Link to="/projetos" className="flex items-center gap-2">
-                Ver todos os projetos <ArrowRight className="h-4 w-4" />
+          <div className="text-center mt-20">
+            <Button
+              asChild
+              variant="outline"
+              size="lg"
+              className="border-2 border-primary text-primary hover:bg-primary hover:text-white rounded-full px-8 h-12 text-base transition-all duration-300"
+            >
+              <Link to="/planos" className="flex items-center gap-2">
+                Conhecer Detalhes dos Planos <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
           </div>
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="py-20 bg-white">
+      {/* 3. Featured Projects */}
+      <section className="py-24 bg-stone-50">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-heading font-bold text-foreground mb-4">
-              Como Funciona
-            </h2>
-            <p className="text-muted-foreground">
-              Seu novo jardim em 4 passos simples.
-            </p>
+          <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
+            <div className="text-center md:text-left">
+              <h2 className="text-3xl md:text-5xl font-heading font-bold text-foreground mb-4">
+                Projetos em Destaque
+              </h2>
+              <p className="text-muted-foreground text-lg max-w-2xl">
+                Inspire-se com transformações reais projetadas por nossa equipe.
+              </p>
+            </div>
+            <Button
+              asChild
+              variant="link"
+              className="text-primary text-lg font-semibold hover:text-forest hidden md:inline-flex"
+            >
+              <Link to="/projetos" className="flex items-center gap-2">
+                Ver galeria completa <ArrowRight className="h-5 w-5" />
+              </Link>
+            </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            {steps.map((step, index) => (
-              <div
-                key={index}
-                className="flex flex-col items-center text-center p-6 rounded-xl border border-border hover:shadow-lg transition-shadow bg-card"
-              >
-                <div className="mb-6 p-4 bg-primary/10 rounded-full text-primary">
-                  {step.icon}
-                </div>
-                <h3 className="text-xl font-bold mb-3">{step.title}</h3>
-                <p className="text-sm text-muted-foreground">{step.desc}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {featuredProjects.slice(0, 3).map((project, index) => {
+              const { before, after } = getProjectImages(project)
+              return (
+                <Link
+                  key={project.id}
+                  to={`/projetos/${project.id}`}
+                  className="block group hover:no-underline transform hover:-translate-y-1 transition-transform duration-300"
+                >
+                  <div className="aspect-[4/3] w-full">
+                    <ProjectCard
+                      title={project.title}
+                      description={project.description}
+                      beforeImage={before}
+                      afterImage={after}
+                    />
+                  </div>
+                </Link>
+              )
+            })}
+
+            {featuredProjects.length === 0 && (
+              <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-20 bg-white rounded-2xl shadow-sm border border-border">
+                <ImageIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+                <p className="text-muted-foreground text-lg">
+                  Carregando projetos incríveis...
+                </p>
               </div>
-            ))}
+            )}
+          </div>
+
+          <div className="text-center mt-12 md:hidden">
+            <Button asChild variant="default" className="w-full">
+              <Link to="/projetos">Ver galeria completa</Link>
+            </Button>
           </div>
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section className="py-24 bg-forest text-white">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-heading font-bold mb-6">
+      {/* 4. Final CTA */}
+      <section className="py-32 bg-forest text-white relative overflow-hidden">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-10 pointer-events-none">
+          <TreePine className="absolute -bottom-12 -left-12 w-96 h-96" />
+          <TreePine className="absolute top-12 right-12 w-64 h-64 rotate-12" />
+        </div>
+
+        <div className="container mx-auto px-4 text-center relative z-10">
+          <h2 className="text-3xl md:text-5xl font-heading font-bold mb-8">
             Pronto para transformar seu espaço?
           </h2>
-          <p className="text-lg text-white/80 mb-10 max-w-2xl mx-auto">
+          <p className="text-xl text-white/90 mb-12 max-w-3xl mx-auto font-light leading-relaxed">
             Não deixe para depois. Tenha o jardim dos seus sonhos com um projeto
-            profissional e acessível.
+            profissional, acessível e feito para você.
           </p>
           <Button
             asChild
             size="lg"
-            className="bg-highlight text-forest hover:bg-yellow-400 font-bold text-lg h-14 px-10 rounded-full shadow-xl hover:scale-105 transition-all"
+            className="bg-highlight hover:bg-amber-400 text-forest font-bold text-xl h-16 px-12 rounded-full shadow-2xl hover:scale-105 hover:shadow-amber-400/20 transition-all duration-300"
           >
             <Link to="/planos">Começar Agora</Link>
           </Button>

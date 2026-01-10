@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Upload, X, Loader2 } from 'lucide-react'
+import { Upload, X, Loader2, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -23,7 +23,8 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { useToast } from '@/hooks/use-toast'
-import { useStore, type Order } from '@/lib/store'
+import { useStore, type Order, type PlanType } from '@/lib/store'
+import { useSeo } from '@/hooks/use-seo'
 
 const formSchema = z.object({
   nome: z.string().min(3, 'Nome muito curto'),
@@ -36,18 +37,23 @@ const formSchema = z.object({
 })
 
 export default function Pedido() {
+  useSeo({
+    title: 'Finalizar Pedido | Floresta Paisagismo',
+    description: 'Envie as informações do seu projeto e finalize seu pedido.',
+  })
+
   const { state } = useLocation()
   const navigate = useNavigate()
   const { addOrder } = useStore()
   const { toast } = useToast()
 
-  const [selectedPlan, setSelectedPlan] = useState<string>('Completo')
+  const [selectedPlan, setSelectedPlan] = useState<PlanType>('Ipê')
   const [photos, setPhotos] = useState<File[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (state?.selectedPlan) {
-      setSelectedPlan(state.selectedPlan)
+      setSelectedPlan(state.selectedPlan as PlanType)
     }
   }, [state])
 
@@ -101,7 +107,7 @@ export default function Pedido() {
       dimensions: values.medidas,
       preferences: values.preferencias,
       notes: values.observacoes,
-      plan: selectedPlan as Order['plan'],
+      plan: selectedPlan,
       photos: photoUrls,
     })
 
@@ -115,22 +121,34 @@ export default function Pedido() {
   }
 
   return (
-    <div className="pt-24 pb-16 min-h-screen bg-accent/20">
+    <div className="pt-32 pb-16 min-h-screen bg-stone-50">
       <div className="container mx-auto px-4 max-w-3xl">
+        <Button
+          variant="ghost"
+          onClick={() => navigate('/planos')}
+          className="mb-8 pl-0 hover:bg-transparent hover:text-primary transition-colors"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para Planos
+        </Button>
+
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-heading font-bold">
-            Detalhes do Seu Projeto
+          <h1 className="text-3xl font-heading font-bold text-foreground">
+            Vamos começar seu projeto
           </h1>
-          <p className="text-muted-foreground mt-2">
+          <p className="text-muted-foreground mt-2 text-lg">
             Você escolheu o{' '}
-            <span className="font-bold text-primary">{selectedPlan}</span>.
-            Preencha os dados abaixo para continuarmos.
+            <span className="font-bold text-primary">
+              Projeto {selectedPlan}
+            </span>
+            .
+            <br />
+            Precisamos de alguns detalhes para criar algo único para você.
           </p>
         </div>
 
-        <div className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-border">
+        <div className="bg-white p-6 md:p-10 rounded-2xl shadow-sm border border-border">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -196,6 +214,7 @@ export default function Pedido() {
                           </SelectItem>
                           <SelectItem value="Loja">Loja</SelectItem>
                           <SelectItem value="Terreno">Terreno</SelectItem>
+                          <SelectItem value="Chácara">Chácara</SelectItem>
                           <SelectItem value="Outro">Outro</SelectItem>
                         </SelectContent>
                       </Select>
@@ -213,7 +232,7 @@ export default function Pedido() {
                     <FormLabel>Medidas Aproximadas (Opcional)</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Ex: 10m x 5m, ou 'quintal pequeno'"
+                        placeholder="Ex: 10m x 5m, ou 'quintal pequeno em L'"
                         {...field}
                       />
                     </FormControl>
@@ -227,10 +246,11 @@ export default function Pedido() {
                 name="preferencias"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Preferências (Opcional)</FormLabel>
+                    <FormLabel>Preferências e Estilo (Opcional)</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Ex: Quero um jardim tropical, pouca manutenção..."
+                        placeholder="Ex: Quero um jardim tropical com rede, pouca manutenção, gosto de cores vibrantes..."
+                        className="min-h-[100px]"
                         {...field}
                       />
                     </FormControl>
@@ -241,8 +261,14 @@ export default function Pedido() {
 
               {/* Upload Section */}
               <div className="space-y-4">
-                <FormLabel>Fotos do Espaço</FormLabel>
-                <div className="border-2 border-dashed border-input rounded-lg p-8 text-center hover:bg-accent/50 transition-colors relative">
+                <div className="flex justify-between items-center">
+                  <FormLabel className="text-base">Fotos do Espaço</FormLabel>
+                  <span className="text-xs text-muted-foreground">
+                    Mínimo 1 foto
+                  </span>
+                </div>
+
+                <div className="border-2 border-dashed border-input rounded-xl p-8 text-center hover:bg-accent/30 transition-colors relative bg-stone-50">
                   <Input
                     type="file"
                     multiple
@@ -251,12 +277,14 @@ export default function Pedido() {
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
                   <div className="flex flex-col items-center justify-center pointer-events-none">
-                    <Upload className="h-10 w-10 text-muted-foreground mb-4" />
-                    <p className="font-medium text-sm">
+                    <div className="bg-white p-3 rounded-full shadow-sm mb-4">
+                      <Upload className="h-6 w-6 text-primary" />
+                    </div>
+                    <p className="font-medium text-foreground">
                       Clique ou arraste fotos aqui
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Formatos: JPG, PNG
+                      Procure mostrar vários ângulos do local
                     </p>
                   </div>
                 </div>
@@ -266,7 +294,7 @@ export default function Pedido() {
                     {photos.map((photo, index) => (
                       <div
                         key={index}
-                        className="relative group aspect-square rounded-md overflow-hidden bg-gray-100"
+                        className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100 border shadow-sm"
                       >
                         <img
                           src={URL.createObjectURL(photo)}
@@ -276,7 +304,7 @@ export default function Pedido() {
                         <button
                           type="button"
                           onClick={() => removePhoto(index)}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -286,19 +314,22 @@ export default function Pedido() {
                 )}
               </div>
 
-              <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-md text-sm text-yellow-800">
-                Após enviar as fotos, você seguirá para o pagamento para
-                iniciarmos o projeto.
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg text-sm text-amber-900 flex gap-3 items-start">
+                <div className="mt-0.5 min-w-[4px] h-4 rounded-full bg-amber-500" />
+                <p>
+                  Seus dados e fotos estão seguros conosco. Após o envio, você
+                  será redirecionado para o pagamento seguro.
+                </p>
               </div>
 
               <Button
                 type="submit"
-                className="w-full text-lg h-12"
+                className="w-full text-lg h-14 rounded-full font-bold shadow-lg hover:shadow-xl transition-all"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />{' '}
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />{' '}
                     Processando...
                   </>
                 ) : (

@@ -7,6 +7,14 @@ export type OrderStatus =
   | 'Enviado'
   | 'Cancelado'
 
+export type PlanType =
+  | 'Lírio'
+  | 'Ipê'
+  | 'Jasmim'
+  | 'Essencial'
+  | 'Completo'
+  | 'Premium'
+
 export interface Order {
   id: string
   clientName: string
@@ -16,7 +24,7 @@ export interface Order {
   dimensions?: string
   preferences?: string
   notes?: string
-  plan: 'Essencial' | 'Completo' | 'Premium'
+  plan: PlanType
   photos: string[]
   status: OrderStatus
   paymentId?: string
@@ -96,7 +104,7 @@ const initialData: StoreData = {
       clientEmail: 'demo@floresta.com',
       clientWhatsapp: '(64) 99999-9999',
       propertyType: 'Casa',
-      plan: 'Completo',
+      plan: 'Ipê',
       photos: ['https://img.usecurling.com/p/400/300?q=backyard'],
       status: 'Enviado',
       createdAt: new Date().toISOString(),

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,64 +6,65 @@
 
 @layer base {
   :root {
-    /* Primary Green: #346a32 -> HSL(118, 36%, 31%) */
+    /* Primary Green (Deep Forest): #346a32 -> HSL(118, 36%, 31%) */
     --primary: 118 36% 31%;
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary Green: #a5d6a7 -> HSL(122, 39%, 75%) */
+    /* Secondary Green (Soft): #a5d6a7 -> HSL(122, 39%, 75%) */
     --secondary: 122 39% 75%;
     --secondary-foreground: 118 36% 31%;
 
-    /* Sand/Beige: #f5f5dc -> HSL(60, 56%, 91%) */
-    /* Using for Accent/Muted */
-    --accent: 60 56% 91%;
+    /* Accent (Gold/Amber): #ffd700 -> HSL(51, 100%, 50%) */
+    /* Used for highlights and badges */
+    --accent: 51 100% 50%;
     --accent-foreground: 118 36% 31%;
 
-    --muted: 60 56% 91%;
-    --muted-foreground: 0 0% 46%;
+    /* Muted / Neutral Backgrounds */
+    --muted: 60 20% 96%; /* Very light beige/gray */
+    --muted-foreground: 0 0% 40%; /* Darker gray for text readability */
 
     /* Background White */
     --background: 0 0% 100%;
-    --foreground: 0 0% 13%; /* #212121 */
+    --foreground: 0 0% 15%; /* Soft Black #262626 */
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 13%;
+    --card-foreground: 0 0% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 13%;
+    --popover-foreground: 0 0% 15%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 60 10% 90%; /* Light sandish border */
-    --input: 60 10% 90%;
-    --ring: 118 36% 31%;
+    --border: 0 0% 90%; /* Light gray border for cleaner look */
+    --input: 0 0% 90%;
+    --ring: 118 36% 31%; /* Ring same as primary */
 
-    --radius: 0.5rem;
+    --radius: 0.75rem; /* More rounded corners for premium feel */
   }
 
   .dark {
-    /* Dark mode isn't explicitly requested but good to have sensible defaults or just map to light for now to enforce the design system */
+    /* Dark mode implementation */
     --background: 118 36% 10%;
-    --foreground: 60 56% 91%;
+    --foreground: 60 20% 96%;
 
     --card: 118 36% 15%;
-    --card-foreground: 60 56% 91%;
+    --card-foreground: 60 20% 96%;
 
     --popover: 118 36% 15%;
-    --popover-foreground: 60 56% 91%;
+    --popover-foreground: 60 20% 96%;
 
-    --primary: 118 36% 31%;
+    --primary: 118 36% 40%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 118 36% 20%;
     --secondary-foreground: 0 0% 100%;
 
     --muted: 118 36% 20%;
-    --muted-foreground: 60 56% 70%;
+    --muted-foreground: 60 20% 80%;
 
-    --accent: 118 36% 25%;
-    --accent-foreground: 60 56% 91%;
+    --accent: 51 100% 50%;
+    --accent-foreground: 0 0% 15%;
 
     --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 100%;
@@ -79,7 +80,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-body;
+    @apply bg-background text-foreground font-body antialiased selection:bg-primary/20 selection:text-primary;
   }
   h1,
   h2,
@@ -96,8 +97,8 @@
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   }
   .glass-header {
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(8px);
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(12px);
     border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   }
 }

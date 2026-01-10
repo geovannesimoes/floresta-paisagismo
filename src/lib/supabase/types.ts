@@ -89,6 +89,33 @@ export type Database = {
         }
         Relationships: []
       }
+      site_settings: {
+        Row: {
+          company_name: string
+          created_at: string
+          hero_image_url: string | null
+          id: string
+          logo_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_name?: string
+          created_at?: string
+          hero_image_url?: string | null
+          id?: string
+          logo_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_name?: string
+          created_at?: string
+          hero_image_url?: string | null
+          id?: string
+          logo_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
