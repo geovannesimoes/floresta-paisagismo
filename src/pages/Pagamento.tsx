@@ -2,17 +2,20 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { CheckCircle2, Loader2, QrCode } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ordersService } from '@/services/ordersService'
+import { useToast } from '@/hooks/use-toast'
 
 export default function Pagamento() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { updateOrderPayment } = useStore()
+  const { toast } = useToast()
+
   const [loading, setLoading] = useState(true)
   const [step, setStep] = useState<'processing' | 'payment' | 'success'>(
     'processing',
   )
+  const [displayId, setDisplayId] = useState<number | null>(null)
 
   const orderId = location.state?.orderId
   const planName = location.state?.planName
@@ -32,16 +35,33 @@ export default function Pagamento() {
     return () => clearTimeout(timer)
   }, [orderId, navigate])
 
-  const handleSimulatePayment = () => {
+  const handleSimulatePayment = async () => {
     setLoading(true)
 
-    // Simulate payment processing time
-    setTimeout(() => {
-      const fakePaymentId = `PAY-${Math.random().toString(36).substring(7).toUpperCase()}`
-      updateOrderPayment(orderId, fakePaymentId)
-      setLoading(false)
+    try {
+      // Update order status in DB
+      const { data, error } = await ordersService.updateOrderStatus(
+        orderId,
+        'Recebido',
+      )
+
+      if (error) throw error
+
+      if (data) {
+        setDisplayId(data.display_id)
+      }
+
       setStep('success')
-    }, 2000)
+    } catch (error) {
+      console.error(error)
+      toast({
+        title: 'Erro no pagamento',
+        description: 'Não foi possível confirmar o pagamento. Tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (step === 'processing' || (step === 'payment' && loading)) {
@@ -64,8 +84,9 @@ export default function Pagamento() {
           Pagamento Confirmado!
         </h1>
         <p className="text-muted-foreground mb-8 max-w-md">
-          Seu pedido <strong>#{orderId}</strong> foi recebido com sucesso. Nossa
-          equipe já vai começar a trabalhar no seu projeto.
+          Seu pedido <strong>#{displayId || orderId?.slice(0, 8)}</strong> foi
+          recebido com sucesso. Nossa equipe já vai começar a trabalhar no seu
+          projeto.
         </p>
         <div className="space-y-4">
           <Button
@@ -89,7 +110,9 @@ export default function Pagamento() {
         <Card>
           <CardHeader className="text-center border-b">
             <CardTitle>Checkout Seguro</CardTitle>
-            <p className="text-sm text-muted-foreground">Pedido #{orderId}</p>
+            <p className="text-sm text-muted-foreground">
+              ID Interno: {orderId?.slice(0, 8)}
+            </p>
           </CardHeader>
           <CardContent className="pt-6 space-y-6">
             <div className="flex justify-between items-center text-lg font-semibold">

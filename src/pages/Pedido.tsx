@@ -23,7 +23,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { useToast } from '@/hooks/use-toast'
-import { useStore, type Order, type PlanType } from '@/lib/store'
+import { ordersService } from '@/services/ordersService'
 import { useSeo } from '@/hooks/use-seo'
 
 const formSchema = z.object({
@@ -44,16 +44,15 @@ export default function Pedido() {
 
   const { state } = useLocation()
   const navigate = useNavigate()
-  const { addOrder } = useStore()
   const { toast } = useToast()
 
-  const [selectedPlan, setSelectedPlan] = useState<PlanType>('Ipê')
+  const [selectedPlan, setSelectedPlan] = useState('Ipê')
   const [photos, setPhotos] = useState<File[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (state?.selectedPlan) {
-      setSelectedPlan(state.selectedPlan as PlanType)
+      setSelectedPlan(state.selectedPlan)
     }
   }, [state])
 
@@ -92,32 +91,41 @@ export default function Pedido() {
 
     setIsSubmitting(true)
 
-    // Simulate image processing (convert to base64 placeholder or use dummy url)
-    const photoUrls = photos.map(
-      (_, index) =>
-        `https://img.usecurling.com/p/800/600?q=garden%20${index + 1}`,
-    )
+    try {
+      // Create Order
+      const { data: order, error } = await ordersService.createOrder({
+        client_name: values.nome,
+        client_email: values.email,
+        client_whatsapp: values.whatsapp,
+        property_type: values.tipoImovel,
+        dimensions: values.medidas,
+        preferences: values.preferencias,
+        notes: values.observacoes,
+        plan: selectedPlan,
+        status: 'Aguardando Pagamento',
+      })
 
-    // Create Order
-    const order = addOrder({
-      clientName: values.nome,
-      clientEmail: values.email,
-      clientWhatsapp: values.whatsapp,
-      propertyType: values.tipoImovel,
-      dimensions: values.medidas,
-      preferences: values.preferencias,
-      notes: values.observacoes,
-      plan: selectedPlan,
-      photos: photoUrls,
-    })
+      if (error || !order) throw error || new Error('Failed to create order')
 
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+      // Upload Photos
+      const uploadPromises = photos.map((photo) =>
+        ordersService.uploadOrderPhoto(order.id, photo),
+      )
+      await Promise.all(uploadPromises)
 
-    setIsSubmitting(false)
-    navigate('/pagamento', {
-      state: { orderId: order.id, planName: selectedPlan },
-    })
+      navigate('/pagamento', {
+        state: { orderId: order.id, planName: selectedPlan },
+      })
+    } catch (error: any) {
+      console.error(error)
+      toast({
+        title: 'Erro ao enviar pedido',
+        description: 'Tente novamente mais tarde.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (

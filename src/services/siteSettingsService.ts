@@ -5,6 +5,26 @@ export interface SiteSettings {
   company_name: string
   logo_url: string | null
   hero_image_url: string | null
+
+  // CMS Fields
+  hero_title?: string
+  hero_subtitle?: string
+  hero_button_text?: string
+  hero_button_link?: string
+
+  cta_title?: string
+  cta_text?: string
+  cta_button_text?: string
+  cta_button_link?: string
+
+  contact_phone?: string
+  contact_email?: string
+  address?: string
+  instagram_link?: string
+
+  primary_color?: string
+  accent_color?: string
+
   updated_at: string
 }
 

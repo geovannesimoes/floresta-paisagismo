@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import {
   LogOut,
@@ -9,10 +9,12 @@ import {
   Save,
   X,
   Loader2,
-  Leaf,
-  Hammer,
   Upload,
   Settings,
+  Package,
+  FileText,
+  Palette,
+  LayoutTemplate,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -40,7 +42,13 @@ import {
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
 import { LOGO_URL } from '@/lib/constants'
@@ -50,6 +58,7 @@ import {
   ProjectMedia,
 } from '@/services/projectsService'
 import { siteSettingsService } from '@/services/siteSettingsService'
+import { ordersService, Order } from '@/services/ordersService'
 import { useSiteSettings } from '@/hooks/use-site-settings'
 
 export default function Admin() {
@@ -58,224 +67,172 @@ export default function Admin() {
   const { signOut, user, loading: authLoading } = useAuth()
   const { settings, refreshSettings } = useSiteSettings()
 
+  // State
   const [projects, setProjects] = useState<Project[]>([])
-  const [loading, setLoading] = useState(true)
-  const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false)
-  const [editingProject, setEditingProject] = useState<Partial<Project>>({})
-  const [mediaList, setMediaList] = useState<ProjectMedia[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
+  const [settingsForm, setSettingsForm] = useState<any>({})
 
-  // Media Form State
+  // Dialogs & Modals
+  const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false)
+  const [isOrderDialogOpen, setIsOrderDialogOpen] = useState(false)
+
+  // Selections
+  const [editingProject, setEditingProject] = useState<Partial<Project>>({})
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+
+  // Loading states
+  const [loading, setLoading] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+
+  // Media Upload State
   const [newMediaUrl, setNewMediaUrl] = useState('')
   const [newMediaFile, setNewMediaFile] = useState<File | null>(null)
   const [newMediaType, setNewMediaType] = useState<
     'before' | 'after' | 'gallery'
   >('gallery')
-  const [newMediaPlants, setNewMediaPlants] = useState('')
-  const [newMediaMaterials, setNewMediaMaterials] = useState('')
-  const [newMediaDescription, setNewMediaDescription] = useState('')
-  const [isUploading, setIsUploading] = useState(false)
+  const [mediaList, setMediaList] = useState<ProjectMedia[]>([])
 
-  // Settings State
-  const [isSettingsUploading, setIsSettingsUploading] = useState(false)
-  const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [heroFile, setHeroFile] = useState<File | null>(null)
+  // Deliverable Upload State
+  const [deliverableFile, setDeliverableFile] = useState<File | null>(null)
+  const [deliverableTitle, setDeliverableTitle] = useState('')
 
-  const fetchProjects = useCallback(async () => {
-    setLoading(true)
-    const { data, error } = await projectsService.getProjects()
-    if (error) {
-      toast({ title: 'Erro ao carregar projetos', variant: 'destructive' })
-    } else {
-      setProjects(data || [])
+  useEffect(() => {
+    if (user) {
+      loadData()
     }
+  }, [user])
+
+  useEffect(() => {
+    if (settings) {
+      setSettingsForm(settings)
+    }
+  }, [settings])
+
+  const loadData = async () => {
+    setLoading(true)
+    const [pData, oData] = await Promise.all([
+      projectsService.getProjects(),
+      ordersService.getOrders(),
+    ])
+    setProjects(pData.data || [])
+    setOrders(oData.data || [])
     setLoading(false)
-  }, [toast])
-
-  useEffect(() => {
-    if (!authLoading && !user) navigate('/admin/login')
-  }, [user, authLoading, navigate])
-
-  useEffect(() => {
-    if (user) fetchProjects()
-  }, [user, fetchProjects])
+  }
 
   const handleLogout = async () => {
     await signOut()
     navigate('/admin/login')
   }
 
-  const handleSaveProject = async () => {
-    if (!editingProject.title) {
-      toast({ title: 'O título é obrigatório', variant: 'destructive' })
-      return
-    }
-
+  // --- SETTINGS ACTIONS ---
+  const handleSaveSettings = async () => {
+    if (!settings?.id) return
+    setLoading(true)
     try {
-      let savedProject: Project
+      await siteSettingsService.updateSettings(settings.id, settingsForm)
+      refreshSettings()
+      toast({ title: 'Configurações salvas com sucesso!' })
+    } catch (e) {
+      toast({ title: 'Erro ao salvar', variant: 'destructive' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSettingsUpload = async (file: File, field: string) => {
+    setLoading(true)
+    const { url } = await siteSettingsService.uploadAsset(file)
+    if (url) {
+      setSettingsForm({ ...settingsForm, [field]: url })
+      toast({ title: 'Upload concluído' })
+    }
+    setLoading(false)
+  }
+
+  // --- PROJECT ACTIONS ---
+  const handleSaveProject = async () => {
+    if (!editingProject.title) return
+    setLoading(true)
+    try {
       if (editingProject.id) {
-        const { data, error } = await projectsService.updateProject(
-          editingProject.id,
-          editingProject,
-        )
-        if (error) throw error
-        savedProject = data
-        toast({ title: 'Projeto atualizado com sucesso' })
+        await projectsService.updateProject(editingProject.id, editingProject)
       } else {
-        const { data, error } = await projectsService.createProject({
+        await projectsService.createProject({
           title: editingProject.title!,
           description: editingProject.description || '',
           client_name: editingProject.client_name || '',
           is_featured: editingProject.is_featured || false,
           status: editingProject.status || 'Em Andamento',
         })
-        if (error) throw error
-        savedProject = data
-        toast({ title: 'Projeto criado com sucesso' })
       }
-      setEditingProject(savedProject)
-      fetchProjects()
-    } catch (error: any) {
-      toast({
-        title: 'Erro ao salvar projeto',
-        description: error.message,
-        variant: 'destructive',
-      })
-    }
-  }
-
-  const handleDeleteProject = async (id: string) => {
-    if (
-      !confirm('Tem certeza? Isso apagará todas as fotos e dados do projeto.')
-    )
-      return
-    const { error } = await projectsService.deleteProject(id)
-    if (error) {
-      toast({ title: 'Erro ao excluir', variant: 'destructive' })
-    } else {
-      toast({ title: 'Projeto excluído' })
-      fetchProjects()
+      setIsProjectDialogOpen(false)
+      loadData()
+      toast({ title: 'Projeto salvo!' })
+    } catch (e) {
+      toast({ title: 'Erro ao salvar projeto', variant: 'destructive' })
+    } finally {
+      setLoading(false)
     }
   }
 
   const handleAddMedia = async () => {
-    if (!editingProject.id) return
-    if (!newMediaUrl && !newMediaFile) {
-      toast({
-        title: 'Selecione uma imagem',
-        description: 'Faça upload de um arquivo ou insira uma URL.',
-        variant: 'destructive',
-      })
-      return
-    }
-
+    if (!editingProject.id || (!newMediaUrl && !newMediaFile)) return
+    setIsUploading(true)
     try {
-      setIsUploading(true)
       let finalUrl = newMediaUrl
-
       if (newMediaFile) {
-        const { url, error } = await projectsService.uploadImage(newMediaFile)
-        if (error) throw error
+        const { url } = await projectsService.uploadImage(newMediaFile)
         if (url) finalUrl = url
       }
-
-      const { data, error } = await projectsService.addMedia({
+      const { data } = await projectsService.addMedia({
         project_id: editingProject.id,
         url: finalUrl,
         type: newMediaType,
-        description: newMediaDescription,
-        plants_used: newMediaPlants,
-        materials_used: newMediaMaterials,
       })
-      if (error) throw error
-
-      setMediaList([...mediaList, data])
-      setProjects(
-        projects.map((p) =>
-          p.id === editingProject.id
-            ? { ...p, media: [...(p.media || []), data] }
-            : p,
-        ),
-      )
-
-      setNewMediaUrl('')
-      setNewMediaFile(null)
-      setNewMediaPlants('')
-      setNewMediaMaterials('')
-      setNewMediaDescription('')
+      if (data) {
+        setMediaList([...mediaList, data])
+      }
       toast({ title: 'Mídia adicionada' })
-    } catch (error: any) {
-      toast({
-        title: 'Erro ao adicionar mídia',
-        description: error.message,
-        variant: 'destructive',
-      })
+      setNewMediaFile(null)
+      setNewMediaUrl('')
+    } catch (e) {
+      toast({ title: 'Erro no upload', variant: 'destructive' })
     } finally {
       setIsUploading(false)
     }
   }
 
-  const handleDeleteMedia = async (id: string) => {
-    try {
-      const { error } = await projectsService.deleteMedia(id)
-      if (error) throw error
-      const updatedMedia = mediaList.filter((m) => m.id !== id)
-      setMediaList(updatedMedia)
-      setProjects(
-        projects.map((p) =>
-          p.id === editingProject.id ? { ...p, media: updatedMedia } : p,
-        ),
-      )
-    } catch (error: any) {
-      toast({ title: 'Erro ao remover mídia', variant: 'destructive' })
-    }
+  // --- ORDER ACTIONS ---
+  const handleUpdateOrderStatus = async (status: string) => {
+    if (!selectedOrder) return
+    await ordersService.updateOrderStatus(selectedOrder.id, status)
+    setSelectedOrder({ ...selectedOrder, status })
+    loadData()
+    toast({ title: 'Status atualizado' })
   }
 
-  const openProjectDialog = (project?: Project) => {
-    if (project) {
-      setEditingProject(project)
-      setMediaList(project.media || [])
-    } else {
-      setEditingProject({ is_featured: false, status: 'Em Andamento' })
-      setMediaList([])
-    }
-    setIsProjectDialogOpen(true)
-    setNewMediaFile(null)
-    setNewMediaUrl('')
-  }
-
-  const handleUpdateSettings = async (type: 'logo' | 'hero') => {
-    const file = type === 'logo' ? logoFile : heroFile
-    if (!file || !settings?.id) return
-
-    setIsSettingsUploading(true)
+  const handleUploadDeliverable = async () => {
+    if (!selectedOrder || !deliverableFile || !deliverableTitle) return
+    setIsUploading(true)
     try {
-      const { url, error } = await siteSettingsService.uploadAsset(file)
-      if (error || !url) throw error || new Error('Upload failed')
-
-      const updates =
-        type === 'logo' ? { logo_url: url } : { hero_image_url: url }
-      const { error: updateError } = await siteSettingsService.updateSettings(
-        settings.id,
-        updates,
+      const { data } = await ordersService.uploadDeliverable(
+        selectedOrder.id,
+        deliverableFile,
+        deliverableTitle,
       )
-
-      if (updateError) throw updateError
-
-      toast({
-        title: type === 'logo' ? 'Logo atualizado' : 'Imagem Hero atualizada',
-      })
-      if (type === 'logo') setLogoFile(null)
-      else setHeroFile(null)
-
-      refreshSettings()
-    } catch (error: any) {
-      toast({
-        title: 'Erro ao atualizar',
-        description: error.message,
-        variant: 'destructive',
-      })
+      if (data) {
+        setSelectedOrder({
+          ...selectedOrder,
+          deliverables: [...(selectedOrder.deliverables || []), data],
+        })
+      }
+      toast({ title: 'Arquivo enviado!' })
+      setDeliverableFile(null)
+      setDeliverableTitle('')
+    } catch (e) {
+      toast({ title: 'Erro ao enviar', variant: 'destructive' })
     } finally {
-      setIsSettingsUploading(false)
+      setIsUploading(false)
     }
   }
 
@@ -287,218 +244,597 @@ export default function Admin() {
     )
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white border-b sticky top-0 z-10">
+    <div className="min-h-screen bg-gray-50 font-body">
+      <header className="bg-white border-b sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link
-            to="/"
-            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-          >
+          <Link to="/" className="flex items-center gap-3">
             <img
               src={settings?.logo_url || LOGO_URL}
-              alt="Logo"
               className="h-10 w-auto"
+              alt="Logo"
             />
-            <span className="font-bold text-lg text-gray-500 border-l pl-3">
-              CMS & Gestão
+            <span className="font-bold text-lg text-gray-500 border-l pl-3 hidden sm:inline">
+              CMS
             </span>
           </Link>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground hidden sm:inline-block">
-              {user?.email}
-            </span>
-            <Button variant="outline" onClick={handleLogout} className="gap-2">
-              <LogOut className="h-4 w-4" /> Sair
+            <Button variant="outline" onClick={handleLogout} size="sm">
+              <LogOut className="h-4 w-4 mr-2" /> Sair
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-8">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Painel Administrativo</h1>
-          <Button onClick={() => openProjectDialog()}>
-            <Plus className="h-4 w-4 mr-2" /> Novo Projeto
-          </Button>
-        </div>
-
-        <Tabs defaultValue="projects" className="space-y-6">
-          <TabsList className="bg-white border">
-            <TabsTrigger value="projects">Projetos</TabsTrigger>
-            <TabsTrigger value="settings">
-              <Settings className="h-4 w-4 mr-2" />
-              Configurações do Site
+      <main className="max-w-7xl mx-auto p-4 md:p-8">
+        <Tabs defaultValue="orders" className="space-y-6">
+          <TabsList className="bg-white border p-1">
+            <TabsTrigger
+              value="orders"
+              className="data-[state=active]:bg-primary data-[state=active]:text-white"
+            >
+              <Package className="h-4 w-4 mr-2" /> Pedidos
+            </TabsTrigger>
+            <TabsTrigger
+              value="settings"
+              className="data-[state=active]:bg-primary data-[state=active]:text-white"
+            >
+              <Settings className="h-4 w-4 mr-2" /> Site Settings
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="projects" className="space-y-4">
+          <TabsContent value="orders">
             <Card>
-              <CardContent className="p-0">
+              <CardHeader>
+                <CardTitle>Gestão de Pedidos</CardTitle>
+                <CardDescription>
+                  Acompanhe e gerencie entregas dos clientes
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Título</TableHead>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Plano</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Destaque</TableHead>
-                      <TableHead>Mídia</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
+                      <TableHead className="text-right">Ação</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8">
-                          <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                    {orders.map((order) => (
+                      <TableRow key={order.id}>
+                        <TableCell>#{order.display_id}</TableCell>
+                        <TableCell>
+                          <div className="font-medium">{order.client_name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {order.client_email}
+                          </div>
+                        </TableCell>
+                        <TableCell>{order.plan}</TableCell>
+                        <TableCell>
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs text-white ${
+                              order.status.includes('Recebido')
+                                ? 'bg-blue-500'
+                                : order.status.includes('Pagamento')
+                                  ? 'bg-yellow-500'
+                                  : order.status.includes('Enviado')
+                                    ? 'bg-green-600'
+                                    : 'bg-gray-500'
+                            }`}
+                          >
+                            {order.status}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setSelectedOrder(order)
+                              setIsOrderDialogOpen(true)
+                            }}
+                          >
+                            Ver Detalhes
+                          </Button>
                         </TableCell>
                       </TableRow>
-                    ) : projects.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8">
-                          Nenhum projeto encontrado.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      projects.map((project) => (
-                        <TableRow key={project.id}>
-                          <TableCell className="font-medium">
-                            {project.title}
-                          </TableCell>
-                          <TableCell>
-                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
-                              {project.status}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            {project.is_featured ? '⭐ Sim' : 'Não'}
-                          </TableCell>
-                          <TableCell>
-                            {project.media?.length || 0} fotos
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => openProjectDialog(project)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                                onClick={() => handleDeleteProject(project.id)}
-                              >
-                                <Trash className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
+                    ))}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="settings" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Logo da Empresa</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="p-6 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <img
-                      src={settings?.logo_url || LOGO_URL}
-                      alt="Logo atual"
-                      className="max-h-20 w-auto"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Novo Logo</Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="file"
-                        accept="image/png, image/jpeg, image/svg+xml"
-                        onChange={(e) =>
-                          setLogoFile(e.target.files?.[0] || null)
-                        }
-                      />
-                      <Button
-                        onClick={() => handleUpdateSettings('logo')}
-                        disabled={!logoFile || isSettingsUploading}
-                      >
-                        {isSettingsUploading ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Upload className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+          <TabsContent value="settings">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              <div className="lg:col-span-1">
+                <nav className="space-y-1" aria-label="Settings sections">
+                  <a
+                    href="#palette"
+                    className="flex items-center px-3 py-2 text-sm font-medium rounded-md bg-white text-gray-900 hover:bg-gray-50 border"
+                  >
+                    <Palette className="mr-3 h-5 w-5 text-gray-500" /> Cores &
+                    Identidade
+                  </a>
+                  <a
+                    href="#hero"
+                    className="flex items-center px-3 py-2 text-sm font-medium rounded-md bg-white text-gray-900 hover:bg-gray-50 border"
+                  >
+                    <LayoutTemplate className="mr-3 h-5 w-5 text-gray-500" />{' '}
+                    Hero Section
+                  </a>
+                  <a
+                    href="#cta"
+                    className="flex items-center px-3 py-2 text-sm font-medium rounded-md bg-white text-gray-900 hover:bg-gray-50 border"
+                  >
+                    <LayoutTemplate className="mr-3 h-5 w-5 text-gray-500" />{' '}
+                    CTA Section
+                  </a>
+                  <a
+                    href="#projects"
+                    className="flex items-center px-3 py-2 text-sm font-medium rounded-md bg-white text-gray-900 hover:bg-gray-50 border"
+                  >
+                    <ImageIcon className="mr-3 h-5 w-5 text-gray-500" />{' '}
+                    Projetos & Portfolio
+                  </a>
+                </nav>
+                <div className="mt-6">
+                  <Button
+                    onClick={handleSaveSettings}
+                    disabled={loading}
+                    className="w-full"
+                  >
+                    {loading ? (
+                      <Loader2 className="animate-spin mr-2" />
+                    ) : (
+                      <Save className="mr-2 h-4 w-4" />
+                    )}
+                    Salvar Tudo
+                  </Button>
+                </div>
+              </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Imagem de Capa (Hero)</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="aspect-video w-full bg-gray-100 rounded-lg overflow-hidden relative">
-                    <img
-                      src={
-                        settings?.hero_image_url ||
-                        'https://img.usecurling.com/p/1920/1080?q=garden&dpr=2'
-                      }
-                      alt="Hero atual"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Nova Imagem</Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="file"
-                        accept="image/png, image/jpeg, image/webp"
-                        onChange={(e) =>
-                          setHeroFile(e.target.files?.[0] || null)
-                        }
-                      />
+              <div className="lg:col-span-3 space-y-8">
+                {/* Palette Section */}
+                <section id="palette" className="scroll-mt-20">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Identidade Visual</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Cor Primária (Hex)</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              type="color"
+                              className="w-12 h-10 p-1"
+                              value={settingsForm.primary_color || '#346a32'}
+                              onChange={(e) =>
+                                setSettingsForm({
+                                  ...settingsForm,
+                                  primary_color: e.target.value,
+                                })
+                              }
+                            />
+                            <Input
+                              value={settingsForm.primary_color || ''}
+                              onChange={(e) =>
+                                setSettingsForm({
+                                  ...settingsForm,
+                                  primary_color: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Cor de Destaque (Hex)</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              type="color"
+                              className="w-12 h-10 p-1"
+                              value={settingsForm.accent_color || '#ffd700'}
+                              onChange={(e) =>
+                                setSettingsForm({
+                                  ...settingsForm,
+                                  accent_color: e.target.value,
+                                })
+                              }
+                            />
+                            <Input
+                              value={settingsForm.accent_color || ''}
+                              onChange={(e) =>
+                                setSettingsForm({
+                                  ...settingsForm,
+                                  accent_color: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Logo do Site</Label>
+                        <div className="flex items-center gap-4">
+                          {settingsForm.logo_url && (
+                            <img
+                              src={settingsForm.logo_url}
+                              className="h-12 border p-1 rounded"
+                            />
+                          )}
+                          <Input
+                            type="file"
+                            onChange={(e) =>
+                              e.target.files?.[0] &&
+                              handleSettingsUpload(
+                                e.target.files[0],
+                                'logo_url',
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </section>
+
+                {/* Hero Section */}
+                <section id="hero" className="scroll-mt-20">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Hero Section (Topo)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Imagem de Fundo</Label>
+                        <div className="flex gap-4">
+                          {settingsForm.hero_image_url && (
+                            <img
+                              src={settingsForm.hero_image_url}
+                              className="h-20 w-32 object-cover rounded"
+                            />
+                          )}
+                          <Input
+                            type="file"
+                            onChange={(e) =>
+                              e.target.files?.[0] &&
+                              handleSettingsUpload(
+                                e.target.files[0],
+                                'hero_image_url',
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Título Principal</Label>
+                        <Input
+                          value={settingsForm.hero_title || ''}
+                          onChange={(e) =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              hero_title: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Subtítulo</Label>
+                        <Textarea
+                          value={settingsForm.hero_subtitle || ''}
+                          onChange={(e) =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              hero_subtitle: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Texto do Botão</Label>
+                          <Input
+                            value={settingsForm.hero_button_text || ''}
+                            onChange={(e) =>
+                              setSettingsForm({
+                                ...settingsForm,
+                                hero_button_text: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Link do Botão</Label>
+                          <Input
+                            value={settingsForm.hero_button_link || ''}
+                            onChange={(e) =>
+                              setSettingsForm({
+                                ...settingsForm,
+                                hero_button_link: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </section>
+
+                {/* CTA Section */}
+                <section id="cta" className="scroll-mt-20">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>CTA Section (Chamada Final)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Título CTA</Label>
+                        <Input
+                          value={settingsForm.cta_title || ''}
+                          onChange={(e) =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              cta_title: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Texto CTA</Label>
+                        <Textarea
+                          value={settingsForm.cta_text || ''}
+                          onChange={(e) =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              cta_text: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Texto do Botão</Label>
+                          <Input
+                            value={settingsForm.cta_button_text || ''}
+                            onChange={(e) =>
+                              setSettingsForm({
+                                ...settingsForm,
+                                cta_button_text: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Link do Botão</Label>
+                          <Input
+                            value={settingsForm.cta_button_link || ''}
+                            onChange={(e) =>
+                              setSettingsForm({
+                                ...settingsForm,
+                                cta_button_link: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </section>
+
+                {/* Projects Section */}
+                <section id="projects" className="scroll-mt-20">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <div>
+                        <CardTitle>Portfolio de Projetos</CardTitle>
+                        <CardDescription>
+                          Gerencie os projetos exibidos no site
+                        </CardDescription>
+                      </div>
                       <Button
-                        onClick={() => handleUpdateSettings('hero')}
-                        disabled={!heroFile || isSettingsUploading}
+                        size="sm"
+                        onClick={() => {
+                          setEditingProject({})
+                          setMediaList([])
+                          setIsProjectDialogOpen(true)
+                        }}
                       >
-                        {isSettingsUploading ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Upload className="h-4 w-4" />
-                        )}
+                        <Plus className="h-4 w-4 mr-2" /> Novo Projeto
                       </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardHeader>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Título</TableHead>
+                            <TableHead>Destaque</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {projects.map((p) => (
+                            <TableRow key={p.id}>
+                              <TableCell>{p.title}</TableCell>
+                              <TableCell>
+                                {p.is_featured ? '⭐ Sim' : 'Não'}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingProject(p)
+                                    setMediaList(p.media || [])
+                                    setIsProjectDialogOpen(true)
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                </section>
+              </div>
             </div>
           </TabsContent>
         </Tabs>
 
+        {/* ORDER MODAL */}
+        <Dialog open={isOrderDialogOpen} onOpenChange={setIsOrderDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Gerenciar Pedido</DialogTitle>
+            </DialogHeader>
+            {selectedOrder && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <div className="bg-muted p-4 rounded-lg text-sm">
+                    <p>
+                      <strong>Cliente:</strong> {selectedOrder.client_name}
+                    </p>
+                    <p>
+                      <strong>Email:</strong> {selectedOrder.client_email}
+                    </p>
+                    <p>
+                      <strong>Plano:</strong> {selectedOrder.plan}
+                    </p>
+                    <p>
+                      <strong>Imóvel:</strong> {selectedOrder.property_type}
+                    </p>
+                    <p>
+                      <strong>Medidas:</strong>{' '}
+                      {selectedOrder.dimensions || 'N/A'}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Alterar Status</Label>
+                    <Select
+                      value={selectedOrder.status}
+                      onValueChange={handleUpdateOrderStatus}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Aguardando Pagamento">
+                          Aguardando Pagamento
+                        </SelectItem>
+                        <SelectItem value="Recebido">Recebido</SelectItem>
+                        <SelectItem value="Em Produção">Em Produção</SelectItem>
+                        <SelectItem value="Enviado">Enviado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <h4 className="font-bold mb-2">Fotos Enviadas</h4>
+                    <div className="grid grid-cols-3 gap-2">
+                      {selectedOrder.photos?.map((p) => (
+                        <a
+                          key={p.id}
+                          href={p.url}
+                          target="_blank"
+                          className="block aspect-square bg-gray-100 rounded overflow-hidden"
+                        >
+                          <img
+                            src={p.url}
+                            className="w-full h-full object-cover"
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="border rounded-lg p-4">
+                    <h4 className="font-bold mb-4">Entregáveis (Upload)</h4>
+                    <div className="space-y-3">
+                      <Input
+                        placeholder="Título (ex: Projeto Final)"
+                        value={deliverableTitle}
+                        onChange={(e) => setDeliverableTitle(e.target.value)}
+                      />
+                      <Input
+                        type="file"
+                        onChange={(e) =>
+                          setDeliverableFile(e.target.files?.[0] || null)
+                        }
+                      />
+                      <Button
+                        className="w-full"
+                        disabled={isUploading || !deliverableFile}
+                        onClick={handleUploadDeliverable}
+                      >
+                        {isUploading ? 'Enviando...' : 'Enviar Arquivo'}
+                      </Button>
+                    </div>
+
+                    <div className="mt-4 space-y-2">
+                      {selectedOrder.deliverables?.map((d) => (
+                        <div
+                          key={d.id}
+                          className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded"
+                        >
+                          <span>{d.title}</span>
+                          <a
+                            href={d.url}
+                            target="_blank"
+                            className="text-blue-600 hover:underline"
+                          >
+                            Ver
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {selectedOrder.revisions &&
+                    selectedOrder.revisions.length > 0 && (
+                      <div className="border border-red-200 bg-red-50 p-4 rounded-lg">
+                        <h4 className="font-bold text-red-800 mb-2">
+                          Solicitações de Revisão
+                        </h4>
+                        {selectedOrder.revisions.map((rev) => (
+                          <div
+                            key={rev.id}
+                            className="text-sm mb-2 pb-2 border-b border-red-100 last:border-0"
+                          >
+                            <p>{rev.description}</p>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(rev.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* PROJECT MODAL */}
         <Dialog
           open={isProjectDialogOpen}
           onOpenChange={setIsProjectDialogOpen}
         >
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>
-                {editingProject.id ? 'Editar Projeto' : 'Novo Projeto'}
-              </DialogTitle>
+              <DialogTitle>Editar Projeto</DialogTitle>
             </DialogHeader>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4">
-              <div className="space-y-4">
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Título do Projeto</Label>
+                  <Label>Título</Label>
                   <Input
                     value={editingProject.title || ''}
                     onChange={(e) =>
@@ -507,237 +843,85 @@ export default function Admin() {
                         title: e.target.value,
                       })
                     }
-                    placeholder="Ex: Jardim Tropical"
                   />
                 </div>
-
-                <div className="space-y-2">
-                  <Label>Cliente (Opcional)</Label>
-                  <Input
-                    value={editingProject.client_name || ''}
+                <div className="flex items-center gap-2 mt-8">
+                  <input
+                    type="checkbox"
+                    checked={editingProject.is_featured || false}
                     onChange={(e) =>
                       setEditingProject({
                         ...editingProject,
-                        client_name: e.target.value,
+                        is_featured: e.target.checked,
                       })
                     }
+                    className="w-4 h-4"
                   />
+                  <Label>Destaque na Home?</Label>
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Textarea
+                  value={editingProject.description || ''}
+                  onChange={(e) =>
+                    setEditingProject({
+                      ...editingProject,
+                      description: e.target.value,
+                    })
+                  }
+                />
+              </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Status</Label>
-                    <Select
-                      value={editingProject.status}
-                      onValueChange={(val) =>
-                        setEditingProject({ ...editingProject, status: val })
+              <div className="border-t pt-4">
+                <h4 className="font-bold mb-2">Galeria de Imagens</h4>
+                <div className="flex gap-2 items-end mb-4">
+                  <div className="flex-1">
+                    <Input
+                      type="file"
+                      onChange={(e) =>
+                        setNewMediaFile(e.target.files?.[0] || null)
                       }
+                    />
+                  </div>
+                  <Select
+                    value={newMediaType}
+                    onValueChange={(v: any) => setNewMediaType(v)}
+                  >
+                    <SelectTrigger className="w-[120px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="before">Antes</SelectItem>
+                      <SelectItem value="after">Depois</SelectItem>
+                      <SelectItem value="gallery">Galeria</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button onClick={handleAddMedia} disabled={isUploading}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {mediaList.map((m) => (
+                    <div
+                      key={m.id}
+                      className="relative aspect-square bg-gray-100 rounded overflow-hidden group"
                     >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Em Andamento">
-                          Em Andamento
-                        </SelectItem>
-                        <SelectItem value="Concluído">Concluído</SelectItem>
-                        <SelectItem value="Cancelado">Cancelado</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-end pb-2">
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editingProject.is_featured || false}
-                        onChange={(e) =>
-                          setEditingProject({
-                            ...editingProject,
-                            is_featured: e.target.checked,
-                          })
-                        }
-                        className="h-4 w-4 rounded border-gray-300 text-primary"
-                      />
-                      <span className="text-sm font-medium">
-                        Destaque na Home
-                      </span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Descrição</Label>
-                  <Textarea
-                    value={editingProject.description || ''}
-                    onChange={(e) =>
-                      setEditingProject({
-                        ...editingProject,
-                        description: e.target.value,
-                      })
-                    }
-                    rows={5}
-                  />
-                </div>
-
-                <Button onClick={handleSaveProject} className="w-full">
-                  <Save className="h-4 w-4 mr-2" /> Salvar Detalhes
-                </Button>
-              </div>
-
-              <div className="space-y-4 border-l pl-0 md:pl-8">
-                <h3 className="font-semibold text-lg flex items-center gap-2">
-                  <ImageIcon className="h-5 w-5" /> Mídia & Detalhes
-                </h3>
-
-                {editingProject.id ? (
-                  <div className="space-y-4">
-                    <div className="bg-muted/30 p-4 rounded-lg space-y-3 border">
-                      <Tabs defaultValue="upload" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
-                          <TabsTrigger value="upload">Upload</TabsTrigger>
-                          <TabsTrigger value="url">Link</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="upload" className="space-y-2">
-                          <Label>Selecione o arquivo</Label>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="file"
-                              accept="image/png, image/jpeg, image/webp"
-                              onChange={(e) =>
-                                setNewMediaFile(e.target.files?.[0] || null)
-                              }
-                              className="cursor-pointer"
-                            />
-                            {newMediaFile && (
-                              <span className="text-xs text-green-600 font-bold whitespace-nowrap">
-                                Selecionado
-                              </span>
-                            )}
-                          </div>
-                        </TabsContent>
-                        <TabsContent value="url" className="space-y-2">
-                          <Label>URL da Imagem</Label>
-                          <Input
-                            value={newMediaUrl}
-                            onChange={(e) => setNewMediaUrl(e.target.value)}
-                            placeholder="https://..."
-                          />
-                        </TabsContent>
-                      </Tabs>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Tipo</Label>
-                          <Select
-                            value={newMediaType}
-                            onValueChange={(val: any) => setNewMediaType(val)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="gallery">Galeria</SelectItem>
-                              <SelectItem value="before">Antes</SelectItem>
-                              <SelectItem value="after">Depois</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Descrição</Label>
-                          <Input
-                            value={newMediaDescription}
-                            onChange={(e) =>
-                              setNewMediaDescription(e.target.value)
-                            }
-                            placeholder="Legenda da foto"
-                          />
-                        </div>
+                      <img src={m.url} className="w-full h-full object-cover" />
+                      <div className="absolute bottom-0 left-0 w-full bg-black/60 text-white text-xs p-1 text-center">
+                        {m.type}
                       </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Plantas</Label>
-                          <Input
-                            value={newMediaPlants}
-                            onChange={(e) => setNewMediaPlants(e.target.value)}
-                            placeholder="Ex: Palmeiras"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Materiais</Label>
-                          <Input
-                            value={newMediaMaterials}
-                            onChange={(e) =>
-                              setNewMediaMaterials(e.target.value)
-                            }
-                            placeholder="Ex: Madeira"
-                          />
-                        </div>
-                      </div>
-
-                      <Button
-                        onClick={handleAddMedia}
-                        size="sm"
-                        variant="secondary"
-                        className="w-full"
-                        disabled={isUploading}
-                      >
-                        {isUploading ? (
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        ) : (
-                          <Upload className="h-4 w-4 mr-2" />
-                        )}
-                        {isUploading ? 'Enviando...' : 'Adicionar Foto'}
-                      </Button>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2">
-                      {mediaList.map((media) => (
-                        <div
-                          key={media.id}
-                          className="relative group border rounded-lg overflow-hidden bg-white shadow-sm"
-                        >
-                          <img
-                            src={media.url}
-                            className="w-full h-32 object-cover"
-                            alt={media.description || 'Project media'}
-                          />
-                          <div className="p-2 text-xs">
-                            <div className="font-bold uppercase text-[10px] text-primary mb-1">
-                              {media.type}
-                            </div>
-                            <div className="truncate text-muted-foreground">
-                              {media.description}
-                            </div>
-                            {(media.plants_used || media.materials_used) && (
-                              <div className="flex gap-1 flex-wrap mt-1">
-                                {media.plants_used && (
-                                  <Leaf className="h-3 w-3 text-green-600" />
-                                )}
-                                {media.materials_used && (
-                                  <Hammer className="h-3 w-3 text-stone-600" />
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          <button
-                            onClick={() =>
-                              media.id && handleDeleteMedia(media.id)
-                            }
-                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-48 bg-gray-50 rounded-lg border border-dashed text-muted-foreground text-sm">
-                    Salve o projeto para adicionar fotos.
-                  </div>
-                )}
+                  ))}
+                </div>
               </div>
+              <Button
+                onClick={handleSaveProject}
+                disabled={loading}
+                className="w-full mt-4"
+              >
+                Salvar Projeto
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

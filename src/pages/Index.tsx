@@ -1,10 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Check,
   Camera,
-  CreditCard,
-  Download,
   ArrowRight,
   Leaf,
   Sprout,
@@ -18,14 +15,16 @@ import { useSiteSettings } from '@/hooks/use-site-settings'
 import { useSeo } from '@/hooks/use-seo'
 
 export default function Index() {
+  const { settings } = useSiteSettings()
+
   useSeo({
-    title: 'Floresta Paisagismo | Projetos Paisagísticos Online',
+    title: `${settings?.company_name || 'Floresta Paisagismo'} | Projetos Paisagísticos`,
     description:
-      'Transforme seu jardim com projetos de paisagismo online. Profissionais especializados, entrega rápida e planos acessíveis para todo o Brasil.',
+      settings?.hero_subtitle ||
+      'Transforme seu jardim com projetos de paisagismo online.',
     canonical: window.location.origin,
   })
 
-  const { settings } = useSiteSettings()
   const [featuredProjects, setFeaturedProjects] = useState<Project[]>([])
 
   useEffect(() => {
@@ -85,21 +84,31 @@ export default function Index() {
 
         <div className="relative z-10 container mx-auto px-4 text-center text-white pt-20">
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-heading font-bold mb-8 animate-fade-in-up leading-tight tracking-tight">
-            Seu refúgio particular <br className="hidden md:block" />
-            começa com um bom projeto
+            {settings?.hero_title || (
+              <>
+                Seu refúgio particular <br className="hidden md:block" />
+                começa com um bom projeto
+              </>
+            )}
           </h1>
           <p className="text-lg md:text-2xl mb-12 text-white/90 max-w-3xl mx-auto animate-fade-in-up delay-100 font-light leading-relaxed">
-            Paisagismo profissional, 100% online e acessível.
-            <br />
-            Transformamos seu espaço em um ambiente vivo e acolhedor.
+            {settings?.hero_subtitle || (
+              <>
+                Paisagismo profissional, 100% online e acessível.
+                <br />
+                Transformamos seu espaço em um ambiente vivo e acolhedor.
+              </>
+            )}
           </p>
           <div className="flex flex-col sm:flex-row gap-6 justify-center animate-fade-in-up delay-200">
             <Button
               asChild
               size="lg"
-              className="bg-primary hover:bg-forest text-white text-lg h-16 px-10 rounded-full shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-300 font-bold tracking-wide"
+              className="bg-primary hover:bg-primary/90 text-white text-lg h-16 px-10 rounded-full shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-300 font-bold tracking-wide"
             >
-              <Link to="/planos">Começar Transformação</Link>
+              <Link to={settings?.hero_button_link || '/planos'}>
+                {settings?.hero_button_text || 'Começar Transformação'}
+              </Link>
             </Button>
             <Button
               asChild
@@ -174,7 +183,7 @@ export default function Index() {
             <Button
               asChild
               variant="link"
-              className="text-primary text-lg font-semibold hover:text-forest hidden md:inline-flex"
+              className="text-primary text-lg font-semibold hover:text-primary/80 hidden md:inline-flex"
             >
               <Link to="/projetos" className="flex items-center gap-2">
                 Ver galeria completa <ArrowRight className="h-5 w-5" />
@@ -222,7 +231,7 @@ export default function Index() {
       </section>
 
       {/* 4. Final CTA */}
-      <section className="py-32 bg-forest text-white relative overflow-hidden">
+      <section className="py-32 bg-primary text-white relative overflow-hidden">
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-10 pointer-events-none">
           <TreePine className="absolute -bottom-12 -left-12 w-96 h-96" />
@@ -231,18 +240,20 @@ export default function Index() {
 
         <div className="container mx-auto px-4 text-center relative z-10">
           <h2 className="text-3xl md:text-5xl font-heading font-bold mb-8">
-            Pronto para transformar seu espaço?
+            {settings?.cta_title || 'Pronto para transformar seu espaço?'}
           </h2>
           <p className="text-xl text-white/90 mb-12 max-w-3xl mx-auto font-light leading-relaxed">
-            Não deixe para depois. Tenha o jardim dos seus sonhos com um projeto
-            profissional, acessível e feito para você.
+            {settings?.cta_text ||
+              'Não deixe para depois. Tenha o jardim dos seus sonhos com um projeto profissional, acessível e feito para você.'}
           </p>
           <Button
             asChild
             size="lg"
-            className="bg-highlight hover:bg-amber-400 text-forest font-bold text-xl h-16 px-12 rounded-full shadow-2xl hover:scale-105 hover:shadow-amber-400/20 transition-all duration-300"
+            className="bg-accent hover:bg-accent/90 text-primary font-bold text-xl h-16 px-12 rounded-full shadow-2xl hover:scale-105 transition-all duration-300"
           >
-            <Link to="/planos">Começar Agora</Link>
+            <Link to={settings?.cta_button_link || '/planos'}>
+              {settings?.cta_button_text || 'Começar Agora'}
+            </Link>
           </Button>
         </div>
       </section>

@@ -9,6 +9,7 @@ import {
   siteSettingsService,
   SiteSettings,
 } from '@/services/siteSettingsService'
+import { hexToHsl } from '@/lib/utils'
 
 interface SiteSettingsContextType {
   settings: SiteSettings | null
@@ -39,11 +40,32 @@ export const SiteSettingsProvider = ({ children }: { children: ReactNode }) => {
       const { data } = await siteSettingsService.getSettings()
       if (data) {
         setSettings(data)
+        applyTheme(data)
       }
     } catch (error) {
       console.error('Failed to fetch site settings', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const applyTheme = (settings: SiteSettings) => {
+    const root = document.documentElement
+
+    if (settings.primary_color) {
+      const hsl = hexToHsl(settings.primary_color)
+      if (hsl) {
+        root.style.setProperty('--primary', hsl)
+        // Also update ring to match primary
+        root.style.setProperty('--ring', hsl)
+      }
+    }
+
+    if (settings.accent_color) {
+      const hsl = hexToHsl(settings.accent_color)
+      if (hsl) {
+        root.style.setProperty('--accent', hsl)
+      }
     }
   }
 

@@ -84,12 +84,12 @@ export default function Planos() {
               key={index}
               className={`relative flex flex-col h-full transition-all duration-300 ${
                 plan.highlight
-                  ? 'border-2 border-amber-400 shadow-xl scale-105 z-10 bg-white'
+                  ? 'border-2 border-accent shadow-xl scale-105 z-10 bg-white'
                   : 'border border-border shadow-sm hover:shadow-md bg-white/80'
               }`}
             >
               {plan.highlight && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-highlight text-forest px-6 py-1.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2">
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-accent text-primary px-6 py-1.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2">
                   <Star className="h-4 w-4 fill-current" /> Recomendado
                 </div>
               )}
@@ -105,7 +105,7 @@ export default function Planos() {
 
               <CardContent className="flex-grow text-center px-6">
                 <div className="mb-8 py-6 border-b border-border/50">
-                  <span className="text-5xl font-bold text-forest">
+                  <span className="text-5xl font-bold text-primary">
                     {plan.price}
                   </span>
                   <span className="text-muted-foreground text-sm block mt-2">
@@ -119,7 +119,7 @@ export default function Planos() {
                       key={idx}
                       className="flex items-start gap-3 text-sm text-foreground/80"
                     >
-                      <div className="mt-0.5 p-0.5 rounded-full bg-green-100 text-primary">
+                      <div className="mt-0.5 p-0.5 rounded-full bg-primary/10 text-primary">
                         <Check className="h-3 w-3 shrink-0" />
                       </div>
                       <span className="leading-tight">{feature}</span>
@@ -132,7 +132,7 @@ export default function Planos() {
                 <Button
                   className={`w-full text-lg h-14 rounded-full font-bold shadow-md transition-all duration-300 ${
                     plan.highlight
-                      ? 'bg-primary hover:bg-forest text-white hover:scale-105'
+                      ? 'bg-primary hover:bg-primary/90 text-white hover:scale-105'
                       : 'bg-white border-2 border-primary text-primary hover:bg-primary hover:text-white'
                   }`}
                   onClick={() => handleSelectPlan(plan.name)}
