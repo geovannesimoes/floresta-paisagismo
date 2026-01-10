@@ -15,6 +15,7 @@ import {
   Info,
   CheckCircle,
   X,
+  Eye,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -113,7 +114,8 @@ const PLAN_INFO = {
   },
 }
 
-const CHECKLIST_ITEMS = [
+// Full checklist items
+const ALL_CHECKLIST_ITEMS = [
   'Projeto (PDF/Imagem)',
   'Lista de Compras',
   'Guia de Manutenção',
@@ -339,6 +341,22 @@ export default function Admin() {
     }
   }
 
+  const handleDeleteDeliverable = async (id: string) => {
+    if (!selectedOrder) return
+    try {
+      const { error } = await ordersService.deleteDeliverable(id)
+      if (error) throw error
+
+      setSelectedOrder({
+        ...selectedOrder,
+        deliverables: selectedOrder.deliverables?.filter((d) => d.id !== id),
+      })
+      toast({ title: 'Arquivo removido' })
+    } catch (e) {
+      toast({ title: 'Erro ao remover arquivo', variant: 'destructive' })
+    }
+  }
+
   // --- HELPERS ---
   const getPlanDetails = (planName: string) => {
     return (
@@ -352,6 +370,28 @@ export default function Admin() {
   const isChecklistComplete = (category: string) => {
     if (!selectedOrder?.deliverables) return false
     return selectedOrder.deliverables.some((d) => d.title === category)
+  }
+
+  const getPlanChecklist = (plan: string) => {
+    switch (plan) {
+      case 'Lírio':
+        return ['Projeto (PDF/Imagem)']
+      case 'Ipê':
+        return [
+          'Projeto (PDF/Imagem)',
+          'Lista de Compras',
+          'Guia de Manutenção',
+        ]
+      case 'Jasmim':
+        return [
+          'Projeto (PDF/Imagem)',
+          'Lista de Compras',
+          'Guia de Manutenção',
+          'Guia de Plantio',
+        ]
+      default:
+        return ALL_CHECKLIST_ITEMS
+    }
   }
 
   if (authLoading)
@@ -430,7 +470,9 @@ export default function Admin() {
                       const planInfo = getPlanDetails(order.plan)
                       return (
                         <TableRow key={order.id}>
-                          <TableCell>#{order.display_id}</TableCell>
+                          <TableCell className="font-mono">
+                            {order.id}
+                          </TableCell>
                           <TableCell>
                             <div className="font-medium">
                               {order.client_name}
@@ -493,6 +535,7 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
+          {/* ... Projects and Settings Tabs remain similar ... */}
           <TabsContent value="projects">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
@@ -921,6 +964,10 @@ export default function Admin() {
                 <div className="space-y-4">
                   <div className="bg-muted p-4 rounded-lg text-sm">
                     <p>
+                      <strong>Código:</strong>{' '}
+                      <span className="font-mono">{selectedOrder.id}</span>
+                    </p>
+                    <p>
                       <strong>Cliente:</strong> {selectedOrder.client_name}
                     </p>
                     <p>
@@ -995,7 +1042,7 @@ export default function Admin() {
                     </div>
 
                     <div className="space-y-2 mb-6">
-                      {CHECKLIST_ITEMS.map((item) => {
+                      {getPlanChecklist(selectedOrder.plan).map((item) => {
                         const isComplete = isChecklistComplete(item)
                         return (
                           <div
@@ -1035,7 +1082,7 @@ export default function Admin() {
                             <SelectValue placeholder="Selecione o tipo..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {CHECKLIST_ITEMS.map((item) => (
+                            {ALL_CHECKLIST_ITEMS.map((item) => (
                               <SelectItem key={item} value={item}>
                                 {item}
                               </SelectItem>
@@ -1086,14 +1133,24 @@ export default function Admin() {
                           key={d.id}
                           className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded"
                         >
-                          <span>{d.title}</span>
-                          <a
-                            href={d.url}
-                            target="_blank"
-                            className="text-blue-600 hover:underline"
-                          >
-                            Ver
-                          </a>
+                          <span className="truncate flex-1 pr-2">
+                            {d.title}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={d.url}
+                              target="_blank"
+                              className="text-blue-600 hover:underline flex items-center gap-1"
+                            >
+                              <Eye className="h-3 w-3" /> Ver
+                            </a>
+                            <button
+                              onClick={() => handleDeleteDeliverable(d.id)}
+                              className="text-red-500 hover:text-red-700 flex items-center gap-1 ml-2"
+                            >
+                              <Trash className="h-3 w-3" /> Excluir
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>

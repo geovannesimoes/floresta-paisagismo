@@ -42,11 +42,26 @@ export interface RevisionRequest {
   created_at: string
 }
 
+const generateOrderCode = () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  let code = ''
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return code
+}
+
 export const ordersService = {
   async createOrder(order: Partial<Order>) {
+    const newOrder = {
+      ...order,
+      id: order.id || generateOrderCode(),
+      status: 'Recebido', // Force initial status as per requirement
+    }
+
     const { data, error } = await supabase
       .from('orders')
-      .insert(order)
+      .insert(newOrder)
       .select()
       .single()
     return { data, error }
@@ -77,10 +92,6 @@ export const ordersService = {
     if (error) return { data: null, error }
     if (!data || data.length === 0) return { data: [], error: null }
 
-    // Fetch relations for the first order (or all? usually client area shows one, but we can list them)
-    // For simplicity, we'll fetch relations for the most recent one if used in single view,
-    // or return basic data. The Client Area currently handles one order at a time in the view.
-    // We will return list, and the UI can let user pick.
     return { data, error: null }
   },
 
@@ -181,6 +192,29 @@ export const ordersService = {
   },
 
   async deleteDeliverable(id: string) {
+    // 1. Get the URL to delete from storage
+    const { data: item } = await supabase
+      .from('order_deliverables')
+      .select('url')
+      .eq('id', id)
+      .single()
+
+    if (item && item.url) {
+      try {
+        const urlObj = new URL(item.url)
+        // Storage path is relative to bucket root. URL: .../storage/v1/object/public/order-uploads/...
+        // We need the path after the bucket name
+        const path = urlObj.pathname.split('/order-uploads/')[1]
+        if (path) {
+          await supabase.storage
+            .from('order-uploads')
+            .remove([decodeURIComponent(path)])
+        }
+      } catch (e) {
+        console.error('Error parsing URL for deletion', e)
+      }
+    }
+
     const { error } = await supabase
       .from('order_deliverables')
       .delete()

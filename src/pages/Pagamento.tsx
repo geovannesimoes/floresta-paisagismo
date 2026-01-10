@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { CheckCircle2, Loader2, QrCode } from 'lucide-react'
+import { CheckCircle2, Loader2, QrCode, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ordersService } from '@/services/ordersService'
@@ -15,7 +15,7 @@ export default function Pagamento() {
   const [step, setStep] = useState<'processing' | 'payment' | 'success'>(
     'processing',
   )
-  const [displayId, setDisplayId] = useState<number | null>(null)
+  const [orderCode, setOrderCode] = useState<string>('')
 
   const orderId = location.state?.orderId
   const planName = location.state?.planName
@@ -48,7 +48,7 @@ export default function Pagamento() {
       if (error) throw error
 
       if (data) {
-        setDisplayId(data.display_id)
+        setOrderCode(data.id)
       }
 
       setStep('success')
@@ -64,6 +64,13 @@ export default function Pagamento() {
     }
   }
 
+  const copyToClipboard = () => {
+    if (orderCode) {
+      navigator.clipboard.writeText(orderCode)
+      toast({ title: 'Código copiado!' })
+    }
+  }
+
   if (step === 'processing' || (step === 'payment' && loading)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background">
@@ -76,27 +83,82 @@ export default function Pagamento() {
 
   if (step === 'success') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 text-center">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-6 animate-fade-in-up">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 py-8 text-center">
+        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-6 animate-fade-in-up mx-auto">
           <CheckCircle2 className="h-10 w-10 text-primary" />
         </div>
         <h1 className="text-3xl font-heading font-bold mb-4">
           Pagamento Confirmado!
         </h1>
-        <p className="text-muted-foreground mb-8 max-w-md">
-          Seu pedido <strong>#{displayId || orderId?.slice(0, 8)}</strong> foi
-          recebido com sucesso. Nossa equipe já vai começar a trabalhar no seu
-          projeto.
-        </p>
-        <div className="space-y-4">
+
+        <div className="bg-muted/50 p-6 rounded-lg max-w-md w-full mx-auto mb-8 border">
+          <p className="text-sm text-muted-foreground mb-2">
+            Seu código do pedido é
+          </p>
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <span className="text-3xl font-mono font-bold tracking-wider text-primary">
+              {orderCode || orderId}
+            </span>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={copyToClipboard}
+              title="Copiar código"
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Salve este código. Você precisará dele para acessar a Área do
+            Cliente.
+          </p>
+        </div>
+
+        <div className="max-w-md mx-auto text-left space-y-4 mb-8 bg-white p-6 rounded-lg shadow-sm border">
+          <h3 className="font-bold text-lg">Próximos Passos:</h3>
+          <ul className="space-y-3 text-sm text-muted-foreground">
+            <li className="flex gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+              <span>Sua compra foi confirmada com sucesso.</span>
+            </li>
+            <li className="flex gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+              <span>Você receberá este código e a confirmação por e-mail.</span>
+            </li>
+            <li className="flex gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+              <span>
+                Seu projeto está sendo confeccionado pela nossa equipe.
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+              <span>
+                Você será avisado por e-mail quando tudo estiver pronto.
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+              <span>
+                Acompanhe o status a qualquer momento na Área do Cliente.
+              </span>
+            </li>
+          </ul>
+        </div>
+
+        <div className="space-y-4 w-full max-w-xs mx-auto">
           <Button
             onClick={() => navigate(`/area-cliente`)}
-            className="w-full md:w-auto"
+            className="w-full"
+            size="lg"
           >
             Acessar Área do Cliente
           </Button>
-          <br />
-          <Button variant="link" onClick={() => navigate('/')}>
+          <Button
+            variant="outline"
+            onClick={() => navigate('/')}
+            className="w-full"
+          >
             Voltar ao Início
           </Button>
         </div>
@@ -111,13 +173,19 @@ export default function Pagamento() {
           <CardHeader className="text-center border-b">
             <CardTitle>Checkout Seguro</CardTitle>
             <p className="text-sm text-muted-foreground">
-              ID Interno: {orderId?.slice(0, 8)}
+              ID Interno: {orderId?.slice(0, 8)}...
             </p>
           </CardHeader>
           <CardContent className="pt-6 space-y-6">
             <div className="flex justify-between items-center text-lg font-semibold">
               <span>{planName}</span>
-              <span>R$ 897,00</span>
+              <span>
+                {planName === 'Lírio'
+                  ? 'R$ 399,00'
+                  : planName === 'Ipê'
+                    ? 'R$ 699,00'
+                    : 'R$ 999,00'}
+              </span>
             </div>
 
             <div className="bg-gray-50 p-4 rounded-lg border text-center space-y-4">

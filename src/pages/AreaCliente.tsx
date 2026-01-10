@@ -23,7 +23,11 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
-import { ordersService, Order } from '@/services/ordersService'
+import {
+  ordersService,
+  Order,
+  OrderDeliverable,
+} from '@/services/ordersService'
 import {
   Dialog,
   DialogContent,
@@ -82,7 +86,7 @@ export default function AreaCliente() {
     setLoading(true)
 
     try {
-      // Normalize inputs: remove # from ID, trim, lowercase email
+      // Normalize inputs: trim, remove # from ID, lowercase email
       const normalizedId = orderId.trim().replace('#', '')
       const normalizedEmail = email.trim().toLowerCase()
 
@@ -196,10 +200,10 @@ export default function AreaCliente() {
                     Código do pedido
                   </label>
                   <Input
-                    placeholder="Ex: 550e8400..."
+                    placeholder="Ex: A1B2C3D4"
                     value={orderId}
                     onChange={(e) => setOrderId(e.target.value)}
-                    className="h-11 font-mono"
+                    className="h-11 font-mono uppercase"
                   />
                 </div>
                 <div className="space-y-2">
@@ -266,6 +270,40 @@ export default function AreaCliente() {
     )
   }
 
+  // Group deliverables logic
+  const groupDeliverables = (items: OrderDeliverable[]) => {
+    const groups = {
+      Projeto: [] as OrderDeliverable[],
+      'Sugestão de plantas': [] as OrderDeliverable[],
+      'Guia de manutenção básico': [] as OrderDeliverable[],
+      'Guia detalhado de plantio': [] as OrderDeliverable[],
+      Outros: [] as OrderDeliverable[],
+    }
+
+    items.forEach((item) => {
+      if (item.title.includes('Projeto')) {
+        groups['Projeto'].push(item)
+      } else if (
+        item.title.includes('Sugestão') ||
+        item.title.includes('Lista de Compras')
+      ) {
+        groups['Sugestão de plantas'].push(item)
+      } else if (item.title.includes('Manutenção')) {
+        groups['Guia de manutenção básico'].push(item)
+      } else if (item.title.includes('Plantio')) {
+        groups['Guia detalhado de plantio'].push(item)
+      } else {
+        groups['Outros'].push(item)
+      }
+    })
+
+    return groups
+  }
+
+  const groupedDeliverables = currentOrder.deliverables
+    ? groupDeliverables(currentOrder.deliverables)
+    : null
+
   return (
     <div className="pt-24 pb-16 min-h-screen bg-background">
       <div className="container mx-auto px-4 max-w-6xl">
@@ -297,7 +335,7 @@ export default function AreaCliente() {
                     if (details.data) setCurrentOrder(details.data)
                   }}
                 >
-                  #{o.display_id} - {o.plan}
+                  #{o.id} - {o.plan}
                 </Button>
               ))}
             </div>
@@ -317,7 +355,8 @@ export default function AreaCliente() {
             <Package className="h-10 w-10 text-primary" />
             <div>
               <p className="text-sm text-muted-foreground">
-                Status do Pedido #{currentOrder.display_id}
+                Status do Pedido{' '}
+                <span className="font-mono">#{currentOrder.id}</span>
               </p>
               <Badge
                 className={`${getStatusColor(currentOrder.status)} text-white mt-1`}
@@ -385,51 +424,68 @@ export default function AreaCliente() {
                 Arquivos do Projeto
               </h2>
 
-              {currentOrder.deliverables &&
-              currentOrder.deliverables.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {currentOrder.deliverables.map((item) => (
-                    <div
-                      key={item.id}
-                      className="group relative rounded-xl overflow-hidden shadow-sm border hover:shadow-md transition-all flex flex-col"
-                    >
-                      {item.type === 'image' ? (
-                        <div className="aspect-video bg-gray-100">
-                          <img
-                            src={item.url}
-                            alt={item.title}
-                            className="w-full h-full object-cover"
-                          />
+              {groupedDeliverables &&
+              Object.values(groupedDeliverables).flat().length > 0 ? (
+                <div className="space-y-8">
+                  {Object.entries(groupedDeliverables).map(
+                    ([groupName, items]) => {
+                      if (items.length === 0) return null
+                      return (
+                        <div key={groupName}>
+                          <h3 className="font-bold text-lg mb-3 border-b pb-2 text-gray-700">
+                            {groupName}
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {items.map((item) => (
+                              <div
+                                key={item.id}
+                                className="group relative rounded-xl overflow-hidden shadow-sm border hover:shadow-md transition-all flex flex-col"
+                              >
+                                {item.type === 'image' ? (
+                                  <div className="aspect-video bg-gray-100">
+                                    <img
+                                      src={item.url}
+                                      alt={item.title}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="aspect-video bg-gray-50 flex items-center justify-center">
+                                    <FileText className="h-12 w-12 text-muted-foreground/50" />
+                                  </div>
+                                )}
+                                <div className="p-4 flex-grow">
+                                  <h3 className="font-bold text-sm mb-1">
+                                    {item.title}
+                                  </h3>
+                                  <p className="text-xs text-muted-foreground uppercase">
+                                    {item.type}
+                                  </p>
+                                </div>
+                                <div className="p-4 pt-0">
+                                  <Button
+                                    asChild
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full"
+                                  >
+                                    <a
+                                      href={item.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      <Download className="mr-2 h-3 w-3" />{' '}
+                                      Baixar
+                                    </a>
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      ) : (
-                        <div className="aspect-video bg-gray-50 flex items-center justify-center">
-                          <FileText className="h-12 w-12 text-muted-foreground/50" />
-                        </div>
-                      )}
-                      <div className="p-4 flex-grow">
-                        <h3 className="font-bold text-sm mb-1">{item.title}</h3>
-                        <p className="text-xs text-muted-foreground uppercase">
-                          {item.type}
-                        </p>
-                      </div>
-                      <div className="p-4 pt-0">
-                        <Button
-                          asChild
-                          size="sm"
-                          variant="outline"
-                          className="w-full"
-                        >
-                          <a
-                            href={item.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <Download className="mr-2 h-3 w-3" /> Baixar
-                          </a>
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                      )
+                    },
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
