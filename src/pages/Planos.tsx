@@ -3,6 +3,7 @@ import { Check, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card'
 import { useSeo } from '@/hooks/use-seo'
+import { PLAN_DETAILS, PlanName } from '@/lib/plan-constants'
 
 export default function Planos() {
   const navigate = useNavigate()
@@ -12,54 +13,6 @@ export default function Planos() {
     description:
       'Escolha o plano ideal para o seu projeto de paisagismo. Opções acessíveis com entrega rápida e suporte especializado.',
   })
-
-  const plans = [
-    {
-      name: 'Projeto Lírio',
-      price: 'R$ 399,00',
-      description: 'Ideal para pequenas renovações e consultas rápidas.',
-      features: [
-        'Análise detalhada das fotos',
-        'Design paisagístico conceitual',
-        'Sugestão de plantas ideais',
-        '1 versão do projeto',
-        'Entrega em PDF digital',
-        'Prazo: até 7 dias úteis',
-      ],
-      highlight: false,
-      cta: 'Escolher Lírio',
-    },
-    {
-      name: 'Projeto Ipê',
-      price: 'R$ 699,00',
-      description: 'O equilíbrio perfeito para transformar seu espaço.',
-      features: [
-        'Tudo do Projeto Lírio',
-        'Lista de compras completa',
-        '1 rodada de revisão',
-        'Guia de manutenção básico',
-        'Entrega em alta resolução',
-        'Prazo: até 7 dias úteis',
-      ],
-      highlight: true,
-      cta: 'Escolher Ipê',
-    },
-    {
-      name: 'Projeto Jasmim',
-      price: 'R$ 999,00',
-      description: 'Experiência premium e suporte dedicado.',
-      features: [
-        'Tudo do Projeto Ipê',
-        '2 rodadas de revisão',
-        'Suporte via WhatsApp',
-        'Guia detalhado de plantio',
-        'Prioridade na entrega',
-        'Prazo: até 3 dias úteis',
-      ],
-      highlight: false,
-      cta: 'Escolher Jasmim',
-    },
-  ]
 
   const handleSelectPlan = (planName: string) => {
     navigate('/pedido', { state: { selectedPlan: planName } })
@@ -79,9 +32,14 @@ export default function Planos() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-7xl mx-auto">
-          {plans.map((plan, index) => (
+          {(
+            Object.entries(PLAN_DETAILS) as [
+              PlanName,
+              (typeof PLAN_DETAILS)[PlanName],
+            ][]
+          ).map(([planName, plan]) => (
             <Card
-              key={index}
+              key={planName}
               className={`relative flex flex-col h-full transition-all duration-300 ${
                 plan.highlight
                   ? 'border-2 border-accent shadow-xl scale-105 z-10 bg-white'
@@ -96,7 +54,7 @@ export default function Planos() {
 
               <CardHeader className="text-center pb-2 pt-8">
                 <h3 className="text-2xl font-bold font-heading text-foreground mb-2">
-                  {plan.name}
+                  Projeto {planName}
                 </h3>
                 <p className="text-sm text-muted-foreground min-h-[40px] px-4">
                   {plan.description}
@@ -106,7 +64,7 @@ export default function Planos() {
               <CardContent className="flex-grow text-center px-6">
                 <div className="mb-8 py-6 border-b border-border/50">
                   <span className="text-5xl font-bold text-primary">
-                    {plan.price}
+                    R$ {plan.price}
                   </span>
                   <span className="text-muted-foreground text-sm block mt-2">
                     Pagamento único
@@ -114,7 +72,7 @@ export default function Planos() {
                 </div>
 
                 <ul className="space-y-4 text-left">
-                  {plan.features.map((feature, idx) => (
+                  {plan.marketing_features.map((feature, idx) => (
                     <li
                       key={idx}
                       className="flex items-start gap-3 text-sm text-foreground/80"
@@ -135,7 +93,7 @@ export default function Planos() {
                       ? 'bg-primary hover:bg-primary/90 text-white hover:scale-105'
                       : 'bg-white border-2 border-primary text-primary hover:bg-primary hover:text-white'
                   }`}
-                  onClick={() => handleSelectPlan(plan.name)}
+                  onClick={() => handleSelectPlan(planName)}
                 >
                   {plan.cta}
                 </Button>

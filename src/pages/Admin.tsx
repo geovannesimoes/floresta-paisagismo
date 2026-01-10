@@ -78,6 +78,11 @@ import {
 import { siteSettingsService } from '@/services/siteSettingsService'
 import { ordersService, Order } from '@/services/ordersService'
 import { useSiteSettings } from '@/hooks/use-site-settings'
+import {
+  PLAN_DETAILS,
+  DELIVERABLE_CATEGORIES,
+  PlanName,
+} from '@/lib/plan-constants'
 
 // Constants for Routes
 const VALID_ROUTES = [
@@ -86,40 +91,6 @@ const VALID_ROUTES = [
   { label: 'Projetos (Galeria)', value: '/projetos' },
   { label: 'Pedido (Checkout)', value: '/pedido' },
   { label: 'Área do Cliente', value: '/area-cliente' },
-]
-
-const PLAN_INFO = {
-  Lírio: {
-    price: '399,00',
-    features: ['Sugestão de plantas', '1 versão do projeto (PDF)'],
-  },
-  Ipê: {
-    price: '699,00',
-    features: [
-      'Sugestão de plantas',
-      '1 versão do projeto (PDF)',
-      'Lista de compras',
-      'Guia de manutenção',
-    ],
-  },
-  Jasmim: {
-    price: '999,00',
-    features: [
-      'Sugestão de plantas',
-      '1 versão do projeto (PDF)',
-      'Lista de compras',
-      'Guia de manutenção',
-      'Guia detalhado de plantio',
-    ],
-  },
-}
-
-// Full checklist items
-const ALL_CHECKLIST_ITEMS = [
-  'Projeto (PDF/Imagem)',
-  'Lista de Compras',
-  'Guia de Manutenção',
-  'Guia de Plantio',
 ]
 
 export default function Admin() {
@@ -360,9 +331,9 @@ export default function Admin() {
   // --- HELPERS ---
   const getPlanDetails = (planName: string) => {
     return (
-      PLAN_INFO[planName as keyof typeof PLAN_INFO] || {
+      PLAN_DETAILS[planName as PlanName] || {
         price: '?',
-        features: [],
+        checklist: [],
       }
     )
   }
@@ -373,25 +344,8 @@ export default function Admin() {
   }
 
   const getPlanChecklist = (plan: string) => {
-    switch (plan) {
-      case 'Lírio':
-        return ['Projeto (PDF/Imagem)']
-      case 'Ipê':
-        return [
-          'Projeto (PDF/Imagem)',
-          'Lista de Compras',
-          'Guia de Manutenção',
-        ]
-      case 'Jasmim':
-        return [
-          'Projeto (PDF/Imagem)',
-          'Lista de Compras',
-          'Guia de Manutenção',
-          'Guia de Plantio',
-        ]
-      default:
-        return ALL_CHECKLIST_ITEMS
-    }
+    const details = PLAN_DETAILS[plan as PlanName]
+    return details ? details.checklist : DELIVERABLE_CATEGORIES
   }
 
   if (authLoading)
@@ -482,20 +436,9 @@ export default function Admin() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger className="text-left font-medium underline decoration-dotted">
-                                  {order.plan} — R$ {planInfo.price}
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <ul className="text-xs list-disc pl-4">
-                                    {planInfo.features.map((f, i) => (
-                                      <li key={i}>{f}</li>
-                                    ))}
-                                  </ul>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                            <span className="font-medium">
+                              Plano: Projeto {order.plan} — R$ {planInfo.price}
+                            </span>
                           </TableCell>
                           <TableCell>
                             <span
@@ -535,7 +478,7 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
-          {/* ... Projects and Settings Tabs remain similar ... */}
+          {/* ... Projects and Settings Tabs ... */}
           <TabsContent value="projects">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
@@ -974,7 +917,8 @@ export default function Admin() {
                       <strong>Email:</strong> {selectedOrder.client_email}
                     </p>
                     <p>
-                      <strong>Plano:</strong> {selectedOrder.plan}
+                      <strong>Plano:</strong> Projeto {selectedOrder.plan} — R${' '}
+                      {getPlanDetails(selectedOrder.plan).price}
                     </p>
                     <p>
                       <strong>Imóvel:</strong> {selectedOrder.property_type}
@@ -1082,7 +1026,7 @@ export default function Admin() {
                             <SelectValue placeholder="Selecione o tipo..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {ALL_CHECKLIST_ITEMS.map((item) => (
+                            {DELIVERABLE_CATEGORIES.map((item) => (
                               <SelectItem key={item} value={item}>
                                 {item}
                               </SelectItem>
