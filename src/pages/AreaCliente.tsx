@@ -55,29 +55,27 @@ export default function AreaCliente() {
   // Effect: If user is authenticated via QA login, fetch their orders
   useEffect(() => {
     if (user && user.email) {
-      fetchQaOrders(user.email)
-    }
-  }, [user])
-
-  const fetchQaOrders = async (userEmail: string) => {
-    setLoading(true)
-    try {
-      const { data } = await ordersService.getOrdersByEmail(userEmail)
-      if (data && data.length > 0) {
-        setOrders(data)
-        // Automatically select the first order if none selected
-        if (!currentOrder) {
-          // Fetch full details for the first one
-          const details = await ordersService.getOrderWithRelations(data[0].id)
-          if (details.data) setCurrentOrder(details.data)
+      const fetchQaOrders = async () => {
+        setLoading(true)
+        try {
+          const { data } = await ordersService.getOrdersByEmail(user.email!)
+          if (data && data.length > 0) {
+            setOrders(data)
+            // Automatically select the first order
+            const details = await ordersService.getOrderWithRelations(
+              data[0].id,
+            )
+            if (details.data) setCurrentOrder(details.data)
+          }
+        } catch (e) {
+          console.error(e)
+        } finally {
+          setLoading(false)
         }
       }
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setLoading(false)
+      fetchQaOrders()
     }
-  }
+  }, [user])
 
   const handleStandardLogin = async (e: React.FormEvent) => {
     e.preventDefault()
