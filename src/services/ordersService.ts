@@ -63,8 +63,39 @@ export const ordersService = {
     if (!data || data.length === 0)
       return { data: null, error: 'Order not found' }
 
-    // Fetch related data
-    const order = data[0]
+    return this._fetchOrderRelations(data[0])
+  },
+
+  async getOrdersByEmail(email: string) {
+    // Fetches all orders for a specific email (Authenticated QA flow)
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .ilike('client_email', email)
+      .order('created_at', { ascending: false })
+
+    if (error) return { data: null, error }
+    if (!data || data.length === 0) return { data: [], error: null }
+
+    // Fetch relations for the first order (or all? usually client area shows one, but we can list them)
+    // For simplicity, we'll fetch relations for the most recent one if used in single view,
+    // or return basic data. The Client Area currently handles one order at a time in the view.
+    // We will return list, and the UI can let user pick.
+    return { data, error: null }
+  },
+
+  async getOrderWithRelations(id: string) {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (error) return { data: null, error }
+    return this._fetchOrderRelations(data)
+  },
+
+  async _fetchOrderRelations(order: Order) {
     const [photos, deliverables, revisions] = await Promise.all([
       supabase.from('order_photos').select('*').eq('order_id', order.id),
       supabase.from('order_deliverables').select('*').eq('order_id', order.id),

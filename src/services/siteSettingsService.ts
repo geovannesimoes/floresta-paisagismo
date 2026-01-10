@@ -16,6 +16,7 @@ export interface SiteSettings {
   cta_text?: string
   cta_button_text?: string
   cta_button_link?: string
+  cta_background_image_url?: string | null
 
   contact_phone?: string
   contact_email?: string

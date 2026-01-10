@@ -68,6 +68,32 @@ export const projectsService = {
   },
 
   async deleteProject(id: string) {
+    // 1. Identify all media files related to this project
+    const { data: media } = await supabase
+      .from('project_media')
+      .select('url')
+      .eq('project_id', id)
+
+    if (media && media.length > 0) {
+      const paths = media
+        .map((m) => {
+          // Extract path from URL. Assuming URL pattern: .../project-images/{filename}
+          try {
+            const urlObj = new URL(m.url)
+            const parts = urlObj.pathname.split('/project-images/')
+            return parts.length > 1 ? parts[1] : null
+          } catch (e) {
+            return null
+          }
+        })
+        .filter((p) => p !== null) as string[]
+
+      if (paths.length > 0) {
+        await supabase.storage.from('project-images').remove(paths)
+      }
+    }
+
+    // 2. Delete the project (Database Cascade should handle project_media records, but we ensure cleanliness)
     const { error } = await supabase.from('projects').delete().eq('id', id)
     return { error }
   },
@@ -82,6 +108,25 @@ export const projectsService = {
   },
 
   async deleteMedia(id: string) {
+    // 1. Get the URL to delete from storage
+    const { data: media } = await supabase
+      .from('project_media')
+      .select('url')
+      .eq('id', id)
+      .single()
+
+    if (media) {
+      try {
+        const urlObj = new URL(media.url)
+        const parts = urlObj.pathname.split('/project-images/')
+        if (parts.length > 1) {
+          await supabase.storage.from('project-images').remove([parts[1]])
+        }
+      } catch (e) {
+        console.error('Error parsing URL for deletion', e)
+      }
+    }
+
     const { error } = await supabase.from('project_media').delete().eq('id', id)
     return { error }
   },

@@ -7,14 +7,14 @@ import {
   Edit,
   Image as ImageIcon,
   Save,
-  X,
   Loader2,
-  Upload,
   Settings,
   Package,
-  FileText,
   Palette,
   LayoutTemplate,
+  Info,
+  CheckCircle,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,12 +34,29 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -60,6 +77,48 @@ import {
 import { siteSettingsService } from '@/services/siteSettingsService'
 import { ordersService, Order } from '@/services/ordersService'
 import { useSiteSettings } from '@/hooks/use-site-settings'
+
+// Constants for Routes
+const VALID_ROUTES = [
+  { label: 'Início', value: '/' },
+  { label: 'Planos', value: '/planos' },
+  { label: 'Projetos (Galeria)', value: '/projetos' },
+  { label: 'Pedido (Checkout)', value: '/pedido' },
+  { label: 'Área do Cliente', value: '/area-cliente' },
+]
+
+const PLAN_INFO = {
+  Lírio: {
+    price: '399,00',
+    features: ['Sugestão de plantas', '1 versão do projeto (PDF)'],
+  },
+  Ipê: {
+    price: '699,00',
+    features: [
+      'Sugestão de plantas',
+      '1 versão do projeto (PDF)',
+      'Lista de compras',
+      'Guia de manutenção',
+    ],
+  },
+  Jasmim: {
+    price: '999,00',
+    features: [
+      'Sugestão de plantas',
+      '1 versão do projeto (PDF)',
+      'Lista de compras',
+      'Guia de manutenção',
+      'Guia detalhado de plantio',
+    ],
+  },
+}
+
+const CHECKLIST_ITEMS = [
+  'Projeto (PDF/Imagem)',
+  'Lista de Compras',
+  'Guia de Manutenção',
+  'Guia de Plantio',
+]
 
 export default function Admin() {
   const navigate = useNavigate()
@@ -93,8 +152,9 @@ export default function Admin() {
   const [mediaList, setMediaList] = useState<ProjectMedia[]>([])
 
   // Deliverable Upload State
-  const [deliverableFile, setDeliverableFile] = useState<File | null>(null)
-  const [deliverableTitle, setDeliverableTitle] = useState('')
+  const [deliverableFiles, setDeliverableFiles] = useState<File[]>([])
+  const [deliverableCategory, setDeliverableCategory] = useState<string>('')
+  const [deliverableCustomTitle, setDeliverableCustomTitle] = useState('')
 
   useEffect(() => {
     if (user) {
@@ -175,6 +235,19 @@ export default function Admin() {
     }
   }
 
+  const handleDeleteProject = async (id: string) => {
+    setLoading(true)
+    try {
+      await projectsService.deleteProject(id)
+      loadData()
+      toast({ title: 'Projeto removido com sucesso' })
+    } catch (e) {
+      toast({ title: 'Erro ao remover projeto', variant: 'destructive' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleAddMedia = async () => {
     if (!editingProject.id || (!newMediaUrl && !newMediaFile)) return
     setIsUploading(true)
@@ -202,6 +275,16 @@ export default function Admin() {
     }
   }
 
+  const handleDeleteMedia = async (mediaId: string) => {
+    try {
+      await projectsService.deleteMedia(mediaId)
+      setMediaList(mediaList.filter((m) => m.id !== mediaId))
+      toast({ title: 'Imagem removida' })
+    } catch (e) {
+      toast({ title: 'Erro ao remover imagem', variant: 'destructive' })
+    }
+  }
+
   // --- ORDER ACTIONS ---
   const handleUpdateOrderStatus = async (status: string) => {
     if (!selectedOrder) return
@@ -211,29 +294,64 @@ export default function Admin() {
     toast({ title: 'Status atualizado' })
   }
 
-  const handleUploadDeliverable = async () => {
-    if (!selectedOrder || !deliverableFile || !deliverableTitle) return
+  const handleUploadDeliverables = async () => {
+    if (!selectedOrder || deliverableFiles.length === 0) return
+
+    const titleToUse =
+      deliverableCategory === 'Outros'
+        ? deliverableCustomTitle
+        : deliverableCategory || deliverableCustomTitle
+
+    if (!titleToUse) {
+      toast({ title: 'Defina um título ou categoria', variant: 'destructive' })
+      return
+    }
+
     setIsUploading(true)
     try {
-      const { data } = await ordersService.uploadDeliverable(
-        selectedOrder.id,
-        deliverableFile,
-        deliverableTitle,
+      const uploadPromises = deliverableFiles.map((file) =>
+        ordersService.uploadDeliverable(selectedOrder.id, file, titleToUse),
       )
-      if (data) {
+
+      const results = await Promise.all(uploadPromises)
+
+      const successfulUploads = results
+        .filter((r) => r.data)
+        .map((r) => r.data!)
+
+      if (successfulUploads.length > 0) {
         setSelectedOrder({
           ...selectedOrder,
-          deliverables: [...(selectedOrder.deliverables || []), data],
+          deliverables: [
+            ...(selectedOrder.deliverables || []),
+            ...successfulUploads,
+          ],
         })
+        toast({ title: `${successfulUploads.length} arquivo(s) enviado(s)!` })
+        setDeliverableFiles([])
+        setDeliverableCategory('')
+        setDeliverableCustomTitle('')
       }
-      toast({ title: 'Arquivo enviado!' })
-      setDeliverableFile(null)
-      setDeliverableTitle('')
     } catch (e) {
       toast({ title: 'Erro ao enviar', variant: 'destructive' })
     } finally {
       setIsUploading(false)
     }
+  }
+
+  // --- HELPERS ---
+  const getPlanDetails = (planName: string) => {
+    return (
+      PLAN_INFO[planName as keyof typeof PLAN_INFO] || {
+        price: '?',
+        features: [],
+      }
+    )
+  }
+
+  const isChecklistComplete = (category: string) => {
+    if (!selectedOrder?.deliverables) return false
+    return selectedOrder.deliverables.some((d) => d.title === category)
   }
 
   if (authLoading)
@@ -275,6 +393,12 @@ export default function Admin() {
               <Package className="h-4 w-4 mr-2" /> Pedidos
             </TabsTrigger>
             <TabsTrigger
+              value="projects"
+              className="data-[state=active]:bg-primary data-[state=active]:text-white"
+            >
+              <ImageIcon className="h-4 w-4 mr-2" /> Projetos
+            </TabsTrigger>
+            <TabsTrigger
               value="settings"
               className="data-[state=active]:bg-primary data-[state=active]:text-white"
             >
@@ -302,42 +426,158 @@ export default function Admin() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {orders.map((order) => (
-                      <TableRow key={order.id}>
-                        <TableCell>#{order.display_id}</TableCell>
+                    {orders.map((order) => {
+                      const planInfo = getPlanDetails(order.plan)
+                      return (
+                        <TableRow key={order.id}>
+                          <TableCell>#{order.display_id}</TableCell>
+                          <TableCell>
+                            <div className="font-medium">
+                              {order.client_name}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {order.client_email}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger className="text-left font-medium underline decoration-dotted">
+                                  {order.plan} — R$ {planInfo.price}
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <ul className="text-xs list-disc pl-4">
+                                    {planInfo.features.map((f, i) => (
+                                      <li key={i}>{f}</li>
+                                    ))}
+                                  </ul>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableCell>
+                          <TableCell>
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs text-white ${
+                                order.status.includes('Recebido')
+                                  ? 'bg-blue-500'
+                                  : order.status.includes('Pagamento')
+                                    ? 'bg-yellow-500'
+                                    : order.status.includes('Enviado')
+                                      ? 'bg-green-600'
+                                      : 'bg-gray-500'
+                              }`}
+                            >
+                              {order.status}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setSelectedOrder(order)
+                                setDeliverableFiles([])
+                                setDeliverableCategory('')
+                                setIsOrderDialogOpen(true)
+                              }}
+                            >
+                              Ver Detalhes
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="projects">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Portfolio de Projetos</CardTitle>
+                  <CardDescription>
+                    Gerencie os projetos exibidos no site
+                  </CardDescription>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setEditingProject({})
+                    setMediaList([])
+                    setIsProjectDialogOpen(true)
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-2" /> Novo Projeto
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Título</TableHead>
+                      <TableHead>Destaque</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {projects.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell>{p.title}</TableCell>
                         <TableCell>
-                          <div className="font-medium">{order.client_name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {order.client_email}
-                          </div>
-                        </TableCell>
-                        <TableCell>{order.plan}</TableCell>
-                        <TableCell>
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs text-white ${
-                              order.status.includes('Recebido')
-                                ? 'bg-blue-500'
-                                : order.status.includes('Pagamento')
-                                  ? 'bg-yellow-500'
-                                  : order.status.includes('Enviado')
-                                    ? 'bg-green-600'
-                                    : 'bg-gray-500'
-                            }`}
-                          >
-                            {order.status}
-                          </span>
+                          {p.is_featured ? '⭐ Sim' : 'Não'}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setSelectedOrder(order)
-                              setIsOrderDialogOpen(true)
-                            }}
-                          >
-                            Ver Detalhes
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEditingProject(p)
+                                setMediaList(p.media || [])
+                                setIsProjectDialogOpen(true)
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                                >
+                                  <Trash className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>
+                                    Excluir Projeto?
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Esta ação não pode ser desfeita. Isso
+                                    excluirá permanentemente o projeto e todas
+                                    as imagens associadas.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>
+                                    Cancelar
+                                  </AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDeleteProject(p.id)}
+                                    className="bg-red-600 hover:bg-red-700"
+                                  >
+                                    Sim, Excluir
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -371,13 +611,6 @@ export default function Admin() {
                   >
                     <LayoutTemplate className="mr-3 h-5 w-5 text-gray-500" />{' '}
                     CTA Section
-                  </a>
-                  <a
-                    href="#projects"
-                    className="flex items-center px-3 py-2 text-sm font-medium rounded-md bg-white text-gray-900 hover:bg-gray-50 border"
-                  >
-                    <ImageIcon className="mr-3 h-5 w-5 text-gray-500" />{' '}
-                    Projetos & Portfolio
                   </a>
                 </nav>
                 <div className="mt-6">
@@ -548,15 +781,29 @@ export default function Admin() {
                         </div>
                         <div className="space-y-2">
                           <Label>Link do Botão</Label>
-                          <Input
-                            value={settingsForm.hero_button_link || ''}
-                            onChange={(e) =>
+                          <Select
+                            value={settingsForm.hero_button_link || '/'}
+                            onValueChange={(value) =>
                               setSettingsForm({
                                 ...settingsForm,
-                                hero_button_link: e.target.value,
+                                hero_button_link: value,
                               })
                             }
-                          />
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione um link" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {VALID_ROUTES.map((route) => (
+                                <SelectItem
+                                  key={route.value}
+                                  value={route.value}
+                                >
+                                  {route.label} ({route.value})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                     </CardContent>
@@ -570,6 +817,27 @@ export default function Admin() {
                       <CardTitle>CTA Section (Chamada Final)</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Imagem de Fundo (Opcional)</Label>
+                        <div className="flex gap-4">
+                          {settingsForm.cta_background_image_url && (
+                            <img
+                              src={settingsForm.cta_background_image_url}
+                              className="h-20 w-32 object-cover rounded"
+                            />
+                          )}
+                          <Input
+                            type="file"
+                            onChange={(e) =>
+                              e.target.files?.[0] &&
+                              handleSettingsUpload(
+                                e.target.files[0],
+                                'cta_background_image_url',
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
                       <div className="space-y-2">
                         <Label>Título CTA</Label>
                         <Input
@@ -609,75 +877,31 @@ export default function Admin() {
                         </div>
                         <div className="space-y-2">
                           <Label>Link do Botão</Label>
-                          <Input
-                            value={settingsForm.cta_button_link || ''}
-                            onChange={(e) =>
+                          <Select
+                            value={settingsForm.cta_button_link || '/'}
+                            onValueChange={(value) =>
                               setSettingsForm({
                                 ...settingsForm,
-                                cta_button_link: e.target.value,
+                                cta_button_link: value,
                               })
                             }
-                          />
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione um link" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {VALID_ROUTES.map((route) => (
+                                <SelectItem
+                                  key={route.value}
+                                  value={route.value}
+                                >
+                                  {route.label} ({route.value})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                </section>
-
-                {/* Projects Section */}
-                <section id="projects" className="scroll-mt-20">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between">
-                      <div>
-                        <CardTitle>Portfolio de Projetos</CardTitle>
-                        <CardDescription>
-                          Gerencie os projetos exibidos no site
-                        </CardDescription>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setEditingProject({})
-                          setMediaList([])
-                          setIsProjectDialogOpen(true)
-                        }}
-                      >
-                        <Plus className="h-4 w-4 mr-2" /> Novo Projeto
-                      </Button>
-                    </CardHeader>
-                    <CardContent>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Título</TableHead>
-                            <TableHead>Destaque</TableHead>
-                            <TableHead className="text-right">Ações</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {projects.map((p) => (
-                            <TableRow key={p.id}>
-                              <TableCell>{p.title}</TableCell>
-                              <TableCell>
-                                {p.is_featured ? '⭐ Sim' : 'Não'}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setEditingProject(p)
-                                    setMediaList(p.media || [])
-                                    setIsProjectDialogOpen(true)
-                                  }}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
                     </CardContent>
                   </Card>
                 </section>
@@ -756,25 +980,103 @@ export default function Admin() {
 
                 <div className="space-y-6">
                   <div className="border rounded-lg p-4">
-                    <h4 className="font-bold mb-4">Entregáveis (Upload)</h4>
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="font-bold">Checklist de Entrega</h4>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Info className="h-4 w-4 text-muted-foreground" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            Itens marcados já possuem arquivos enviados.
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+
+                    <div className="space-y-2 mb-6">
+                      {CHECKLIST_ITEMS.map((item) => {
+                        const isComplete = isChecklistComplete(item)
+                        return (
+                          <div
+                            key={item}
+                            className="flex items-center gap-2 text-sm"
+                          >
+                            {isComplete ? (
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <div className="h-4 w-4 rounded-full border border-gray-300" />
+                            )}
+                            <span
+                              className={
+                                isComplete
+                                  ? 'text-green-700 font-medium'
+                                  : 'text-gray-600'
+                              }
+                            >
+                              {item}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <h4 className="font-bold mb-4 border-t pt-4">
+                      Upload de Arquivos
+                    </h4>
                     <div className="space-y-3">
-                      <Input
-                        placeholder="Título (ex: Projeto Final)"
-                        value={deliverableTitle}
-                        onChange={(e) => setDeliverableTitle(e.target.value)}
-                      />
-                      <Input
-                        type="file"
-                        onChange={(e) =>
-                          setDeliverableFile(e.target.files?.[0] || null)
-                        }
-                      />
+                      <div className="space-y-1">
+                        <Label>Categoria</Label>
+                        <Select
+                          value={deliverableCategory}
+                          onValueChange={setDeliverableCategory}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o tipo..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CHECKLIST_ITEMS.map((item) => (
+                              <SelectItem key={item} value={item}>
+                                {item}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value="Outros">Outros</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {deliverableCategory === 'Outros' && (
+                        <Input
+                          placeholder="Título personalizado"
+                          value={deliverableCustomTitle}
+                          onChange={(e) =>
+                            setDeliverableCustomTitle(e.target.value)
+                          }
+                        />
+                      )}
+
+                      <div className="space-y-1">
+                        <Label>Arquivos</Label>
+                        <Input
+                          type="file"
+                          multiple
+                          onChange={(e) =>
+                            setDeliverableFiles(
+                              Array.from(e.target.files || []),
+                            )
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {deliverableFiles.length} arquivo(s) selecionado(s)
+                        </p>
+                      </div>
+
                       <Button
                         className="w-full"
-                        disabled={isUploading || !deliverableFile}
-                        onClick={handleUploadDeliverable}
+                        disabled={isUploading || deliverableFiles.length === 0}
+                        onClick={handleUploadDeliverables}
                       >
-                        {isUploading ? 'Enviando...' : 'Enviar Arquivo'}
+                        {isUploading ? 'Enviando...' : 'Enviar Arquivos'}
                       </Button>
                     </div>
 
@@ -911,6 +1213,12 @@ export default function Admin() {
                       <div className="absolute bottom-0 left-0 w-full bg-black/60 text-white text-xs p-1 text-center">
                         {m.type}
                       </div>
+                      <button
+                        onClick={() => handleDeleteMedia(m.id!)}
+                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </div>
                   ))}
                 </div>

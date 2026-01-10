@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Search,
   Download,
@@ -7,6 +7,8 @@ import {
   ArrowRight,
   FileText,
   Send,
+  Loader2,
+  Lock,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +22,7 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
+import { useAuth } from '@/hooks/use-auth'
 import { ordersService, Order } from '@/services/ordersService'
 import {
   Dialog,
@@ -31,19 +34,64 @@ import {
 
 export default function AreaCliente() {
   const { toast } = useToast()
+  const { user, signIn, signOut } = useAuth() // Use global auth for QA logic
 
+  // Standard Login State
   const [orderId, setOrderId] = useState('')
   const [email, setEmail] = useState('')
+
+  // App Data State
+  const [orders, setOrders] = useState<Order[]>([])
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(false)
   const [revisionText, setRevisionText] = useState('')
 
-  const handleLogin = async (e: React.FormEvent) => {
+  // QA Login Modal State
+  const [isQaLoginOpen, setIsQaLoginOpen] = useState(false)
+  const [qaEmail, setQaEmail] = useState('')
+  const [qaPassword, setQaPassword] = useState('')
+  const [isQaLoading, setIsQaLoading] = useState(false)
+
+  // Effect: If user is authenticated via QA login, fetch their orders
+  useEffect(() => {
+    if (user && user.email) {
+      fetchQaOrders(user.email)
+    }
+  }, [user])
+
+  const fetchQaOrders = async (userEmail: string) => {
+    setLoading(true)
+    try {
+      const { data } = await ordersService.getOrdersByEmail(userEmail)
+      if (data && data.length > 0) {
+        setOrders(data)
+        // Automatically select the first order if none selected
+        if (!currentOrder) {
+          // Fetch full details for the first one
+          const details = await ordersService.getOrderWithRelations(data[0].id)
+          if (details.data) setCurrentOrder(details.data)
+        }
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleStandardLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      const { data, error } = await ordersService.getClientOrder(email, orderId)
+      // Normalize inputs: remove # from ID, trim, lowercase email
+      const normalizedId = orderId.trim().replace('#', '')
+      const normalizedEmail = email.trim().toLowerCase()
+
+      const { data, error } = await ordersService.getClientOrder(
+        normalizedEmail,
+        normalizedId,
+      )
 
       if (error || !data) {
         throw new Error('Pedido não encontrado')
@@ -53,12 +101,38 @@ export default function AreaCliente() {
     } catch (error) {
       toast({
         title: 'Acesso negado',
-        description: 'Verifique o ID do pedido (UUID) e o e-mail.',
+        description: 'Verifique o Código do pedido e o e-mail.',
         variant: 'destructive',
       })
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleQaLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsQaLoading(true)
+    try {
+      const { error } = await signIn(qaEmail, qaPassword)
+      if (error) throw error
+      setIsQaLoginOpen(false)
+      toast({ title: 'Acesso QA concedido' })
+    } catch (e) {
+      toast({ title: 'Erro no login', variant: 'destructive' })
+    } finally {
+      setIsQaLoading(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    if (user) {
+      await signOut()
+    }
+    // Reset all states
+    setOrderId('')
+    setEmail('')
+    setCurrentOrder(null)
+    setOrders([])
   }
 
   const handleRequestRevision = async () => {
@@ -75,7 +149,16 @@ export default function AreaCliente() {
       toast({ title: 'Solicitação enviada!' })
       setRevisionText('')
       // Refresh order data
-      handleLogin({ preventDefault: () => {} } as any)
+      if (user && user.email) {
+        // If QA user, refresh current order details
+        const details = await ordersService.getOrderWithRelations(
+          currentOrder.id,
+        )
+        if (details.data) setCurrentOrder(details.data)
+      } else {
+        // Standard user refresh
+        handleStandardLogin({ preventDefault: () => {} } as any)
+      }
     }
   }
 
@@ -94,30 +177,31 @@ export default function AreaCliente() {
     (!currentOrder.revisions ||
       currentOrder.revisions.length < (currentOrder.plan === 'Jasmim' ? 2 : 1))
 
+  // Render Login View if no order selected
   if (!currentOrder) {
     return (
-      <div className="pt-24 pb-16 min-h-screen bg-accent/20 flex items-center justify-center">
-        <div className="container mx-auto px-4 max-w-md">
-          <Card className="shadow-xl border-t-4 border-t-primary">
+      <div className="pt-24 pb-16 min-h-screen bg-accent/20 flex flex-col items-center justify-center">
+        <div className="container mx-auto px-4 max-w-md w-full">
+          <Card className="shadow-xl border-t-4 border-t-primary w-full">
             <CardHeader className="text-center">
               <CardTitle className="text-2xl font-heading">
                 Área do Cliente
               </CardTitle>
               <CardDescription>
-                Digite o ID do pedido (fornecido no checkout) e seu e-mail.
+                Acompanhe o status e baixe seus projetos.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleLogin} className="space-y-4">
+              <form onSubmit={handleStandardLogin} className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">
-                    ID do Pedido (UUID)
+                    Código do pedido
                   </label>
                   <Input
-                    placeholder="Ex: 550e8400-e29b..."
+                    placeholder="Ex: 550e8400..."
                     value={orderId}
                     onChange={(e) => setOrderId(e.target.value)}
-                    className="h-11"
+                    className="h-11 font-mono"
                   />
                 </div>
                 <div className="space-y-2">
@@ -125,7 +209,7 @@ export default function AreaCliente() {
                     E-mail Cadastrado
                   </label>
                   <Input
-                    placeholder="seu@email.com"
+                    placeholder="exemplo@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="h-11"
@@ -141,6 +225,44 @@ export default function AreaCliente() {
               </form>
             </CardContent>
           </Card>
+
+          <div className="mt-8 text-center">
+            <Dialog open={isQaLoginOpen} onOpenChange={setIsQaLoginOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="link"
+                  className="text-xs text-muted-foreground"
+                >
+                  <Lock className="h-3 w-3 mr-1" /> Acesso QA / Teste
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Login QA</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleQaLogin} className="space-y-4 mt-4">
+                  <Input
+                    placeholder="Email QA"
+                    value={qaEmail}
+                    onChange={(e) => setQaEmail(e.target.value)}
+                  />
+                  <Input
+                    type="password"
+                    placeholder="Senha"
+                    value={qaPassword}
+                    onChange={(e) => setQaPassword(e.target.value)}
+                  />
+                  <Button className="w-full" disabled={isQaLoading}>
+                    {isQaLoading ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      'Entrar'
+                    )}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       </div>
     )
@@ -150,21 +272,39 @@ export default function AreaCliente() {
     <div className="pt-24 pb-16 min-h-screen bg-background">
       <div className="container mx-auto px-4 max-w-6xl">
         <div className="flex justify-between items-center mb-6">
-          <Button
-            variant="outline"
-            className="gap-2"
-            onClick={() => {
-              setOrderId('')
-              setEmail('')
-              setCurrentOrder(null)
-            }}
-          >
+          <Button variant="outline" className="gap-2" onClick={handleLogout}>
             &larr; Sair
           </Button>
           <span className="text-sm text-muted-foreground hidden sm:inline-block">
-            Logado como: {currentOrder.client_email}
+            {user ? 'Modo QA: ' : 'Cliente: '} {currentOrder.client_email}
           </span>
         </div>
+
+        {/* QA Order Selector if multiple */}
+        {user && orders.length > 1 && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm font-bold text-yellow-800 mb-2">
+              Seus Pedidos (QA Mode):
+            </p>
+            <div className="flex gap-2 flex-wrap">
+              {orders.map((o) => (
+                <Button
+                  key={o.id}
+                  variant={currentOrder.id === o.id ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={async () => {
+                    const details = await ordersService.getOrderWithRelations(
+                      o.id,
+                    )
+                    if (details.data) setCurrentOrder(details.data)
+                  }}
+                >
+                  #{o.display_id} - {o.plan}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col md:flex-row gap-6 mb-8">
           <div className="flex-1">

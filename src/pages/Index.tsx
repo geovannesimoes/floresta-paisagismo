@@ -231,11 +231,32 @@ export default function Index() {
       </section>
 
       {/* 4. Final CTA */}
-      <section className="py-32 bg-primary text-white relative overflow-hidden">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-10 pointer-events-none">
-          <TreePine className="absolute -bottom-12 -left-12 w-96 h-96" />
-          <TreePine className="absolute top-12 right-12 w-64 h-64 rotate-12" />
+      <section
+        className="py-32 bg-primary text-white relative overflow-hidden"
+        style={
+          settings?.cta_background_image_url
+            ? {
+                backgroundImage: `url(${settings.cta_background_image_url})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              }
+            : {}
+        }
+      >
+        {/* Background Pattern or Overlay */}
+        <div
+          className={
+            settings?.cta_background_image_url
+              ? 'absolute inset-0 bg-black/60 z-0'
+              : 'absolute inset-0 opacity-10 pointer-events-none'
+          }
+        >
+          {!settings?.cta_background_image_url && (
+            <>
+              <TreePine className="absolute -bottom-12 -left-12 w-96 h-96" />
+              <TreePine className="absolute top-12 right-12 w-64 h-64 rotate-12" />
+            </>
+          )}
         </div>
 
         <div className="container mx-auto px-4 text-center relative z-10">
