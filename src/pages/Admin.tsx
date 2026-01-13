@@ -338,11 +338,6 @@ export default function Admin() {
     )
   }
 
-  const isChecklistComplete = (category: string) => {
-    if (!selectedOrder?.deliverables) return false
-    return selectedOrder.deliverables.some((d) => d.title === category)
-  }
-
   const getPlanChecklist = (plan: string) => {
     const details = PLAN_DETAILS[plan as PlanName]
     return details ? details.checklist : DELIVERABLE_CATEGORIES
@@ -987,7 +982,12 @@ export default function Admin() {
 
                     <div className="space-y-2 mb-6">
                       {getPlanChecklist(selectedOrder.plan).map((item) => {
-                        const isComplete = isChecklistComplete(item)
+                        const fileCount =
+                          selectedOrder.deliverables?.filter(
+                            (d) => d.title === item,
+                          ).length || 0
+                        const isComplete = fileCount > 0
+
                         return (
                           <div
                             key={item}
@@ -1005,7 +1005,7 @@ export default function Admin() {
                                   : 'text-gray-600'
                               }
                             >
-                              {item}
+                              {item} {fileCount > 1 && `(${fileCount})`}
                             </span>
                           </div>
                         )

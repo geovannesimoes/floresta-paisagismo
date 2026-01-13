@@ -64,6 +64,7 @@ export const DELIVERABLE_CATEGORIES = [
   'Guia detalhado de plantio',
 ]
 
+// Maps display sections to their specific deliverable types
 export const DELIVERABLE_SECTIONS = {
   Projeto: ['Projeto (PDF/Imagem)'],
   'Sugestão de plantas': ['Sugestão de plantas ideais'],

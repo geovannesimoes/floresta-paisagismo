@@ -89,7 +89,7 @@ export default function AreaCliente() {
         // Assuming 'teste' is the password for the QA account based on the context
         const { error } = await signIn(normalizedEmail, 'teste')
         if (error) throw error
-        toast({ title: 'Acesso QA concedido' })
+        toast({ title: 'Login realizado com sucesso' })
         // The useEffect will pick up the user change and load data
         return
       }
@@ -267,12 +267,6 @@ export default function AreaCliente() {
       }
 
       if (!matched) {
-        // Fallback logic for items with custom titles or partial matches if needed,
-        // but strict adherence suggests using exact matches from Admin.
-        // However, "Sugestão de plantas" vs "Sugestão de plantas ideais".
-        // Let's assume title matches exactly what is in DELIVERABLE_CATEGORIES
-
-        // If still not matched, put in Outros
         groups['Outros'].push(item)
       }
     })
@@ -292,7 +286,7 @@ export default function AreaCliente() {
             &larr; Sair
           </Button>
           <span className="text-sm text-muted-foreground hidden sm:inline-block">
-            {user ? 'Modo QA: ' : 'Cliente: '} {currentOrder.client_email}
+            Cliente: {currentOrder.client_email}
           </span>
         </div>
 
@@ -300,7 +294,7 @@ export default function AreaCliente() {
         {user && orders.length > 1 && (
           <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-sm font-bold text-yellow-800 mb-2">
-              Seus Pedidos (QA Mode):
+              Seus Pedidos:
             </p>
             <div className="flex gap-2 flex-wrap">
               {orders.map((o) => (
