@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase/client'
 
 export interface Order {
   id: string
-  display_id: number
+  display_id?: number
   client_name: string
   client_email: string
   client_whatsapp: string
@@ -13,6 +13,10 @@ export interface Order {
   plan: string
   status: string
   created_at: string
+  price?: number
+  payment_status?: string
+  asaas_invoice_url?: string
+  is_test?: boolean
   photos?: OrderPhoto[]
   deliverables?: OrderDeliverable[]
   revisions?: RevisionRequest[]
@@ -42,29 +46,62 @@ export interface RevisionRequest {
   created_at: string
 }
 
-const generateOrderCode = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-  let code = ''
-  for (let i = 0; i < 8; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  return code
+export interface CheckoutRequest {
+  client_name: string
+  client_email: string
+  client_whatsapp: string
+  plan: string
+  price: number
+  property_type: string
+  dimensions?: string
+  preferences?: string
+  notes?: string
+}
+
+export interface CheckoutResponse {
+  orderCode: string
+  checkoutUrl: string
+  error?: string
 }
 
 export const ordersService = {
-  async createOrder(order: Partial<Order>) {
-    const newOrder = {
-      ...order,
-      id: order.id || generateOrderCode(),
-      status: 'Recebido', // Force initial status as per requirement
+  // Edge Function Call
+  async createCheckout(data: CheckoutRequest): Promise<CheckoutResponse> {
+    const { data: result, error } = await supabase.functions.invoke(
+      'create-checkout',
+      {
+        body: data,
+      },
+    )
+
+    if (error) {
+      console.error('Checkout error:', error)
+      return {
+        orderCode: '',
+        checkoutUrl: '',
+        error: error.message || 'Erro ao criar checkout',
+      }
     }
 
-    const { data, error } = await supabase
-      .from('orders')
-      .insert(newOrder)
-      .select()
-      .single()
-    return { data, error }
+    if (result.error) {
+      return { orderCode: '', checkoutUrl: '', error: result.error }
+    }
+
+    return result as CheckoutResponse
+  },
+
+  async getOrderByCode(code: string) {
+    // Call Secure RPC to get order by ID without auth (for success page)
+    const { data, error } = await supabase.rpc('get_order_by_code', {
+      p_code: code,
+    })
+
+    if (error) return { data: null, error }
+    if (!data || data.length === 0)
+      return { data: null, error: 'Order not found' }
+
+    // Cast to Order (RPC returns array of rows)
+    return { data: data[0] as Order, error: null }
   },
 
   async getClientOrder(email: string, id: string) {
@@ -192,7 +229,6 @@ export const ordersService = {
   },
 
   async deleteDeliverable(id: string) {
-    // 1. Get the URL to delete from storage
     const { data: item } = await supabase
       .from('order_deliverables')
       .select('url')
@@ -202,8 +238,6 @@ export const ordersService = {
     if (item && item.url) {
       try {
         const urlObj = new URL(item.url)
-        // Storage path is relative to bucket root. URL: .../storage/v1/object/public/order-uploads/...
-        // We need the path after the bucket name
         const path = urlObj.pathname.split('/order-uploads/')[1]
         if (path) {
           await supabase.storage

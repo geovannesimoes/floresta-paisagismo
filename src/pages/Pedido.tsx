@@ -25,6 +25,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { ordersService } from '@/services/ordersService'
 import { useSeo } from '@/hooks/use-seo'
+import { PLAN_DETAILS, PlanName } from '@/lib/plan-constants'
 
 const formSchema = z.object({
   nome: z.string().min(3, 'Nome muito curto'),
@@ -92,35 +93,55 @@ export default function Pedido() {
     setIsSubmitting(true)
 
     try {
-      // Create Order
-      const { data: order, error } = await ordersService.createOrder({
-        client_name: values.nome,
-        client_email: values.email,
-        client_whatsapp: values.whatsapp,
-        property_type: values.tipoImovel,
-        dimensions: values.medidas,
-        preferences: values.preferencias,
-        notes: values.observacoes,
-        plan: selectedPlan,
-        status: 'Aguardando Pagamento',
-      })
+      // Get price from constants
+      const planInfo = PLAN_DETAILS[selectedPlan as PlanName]
+      const price = parseFloat(planInfo.price.replace(',', '.'))
 
-      if (error || !order) throw error || new Error('Failed to create order')
+      // 1. Create Checkout via Edge Function
+      const { orderCode, checkoutUrl, error } =
+        await ordersService.createCheckout({
+          client_name: values.nome,
+          client_email: values.email,
+          client_whatsapp: values.whatsapp,
+          property_type: values.tipoImovel,
+          dimensions: values.medidas,
+          preferences: values.preferencias,
+          notes: values.observacoes,
+          plan: selectedPlan,
+          price: price,
+        })
 
-      // Upload Photos
+      if (error || !orderCode) {
+        throw new Error(error || 'Failed to initiate checkout')
+      }
+
+      // 2. Upload Photos in background (Using orderCode as OrderID)
+      // We do this optimistically. If upload fails, support can handle it.
       const uploadPromises = photos.map((photo) =>
-        ordersService.uploadOrderPhoto(order.id, photo),
+        ordersService.uploadOrderPhoto(orderCode, photo),
       )
+
+      // We don't await uploads to speed up UX? Better to await to ensure photos are there.
+      // But for better UX, we could await.
       await Promise.all(uploadPromises)
 
-      navigate('/pagamento', {
-        state: { orderId: order.id, planName: selectedPlan },
-      })
+      // 3. Redirect
+      if (checkoutUrl) {
+        // Store for fallback/history
+        localStorage.setItem(
+          'lastOrder',
+          JSON.stringify({ code: orderCode, url: checkoutUrl }),
+        )
+        window.location.href = checkoutUrl
+      } else {
+        throw new Error('No checkout URL received')
+      }
     } catch (error: any) {
       console.error(error)
       toast({
         title: 'Erro ao enviar pedido',
-        description: 'Tente novamente mais tarde.',
+        description:
+          error.message || 'Houve um problema. Tente novamente mais tarde.',
         variant: 'destructive',
       })
     } finally {
@@ -325,8 +346,8 @@ export default function Pedido() {
               <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg text-sm text-amber-900 flex gap-3 items-start">
                 <div className="mt-0.5 min-w-[4px] h-4 rounded-full bg-amber-500" />
                 <p>
-                  Seus dados e fotos estão seguros conosco. Após o envio, você
-                  será redirecionado para o pagamento seguro.
+                  Ao continuar, você será redirecionado para o ambiente seguro
+                  da Asaas para concluir o pagamento.
                 </p>
               </div>
 
@@ -341,7 +362,7 @@ export default function Pedido() {
                     Processando...
                   </>
                 ) : (
-                  'Continuar para o Pagamento'
+                  'Pagar com Segurança'
                 )}
               </Button>
             </form>
