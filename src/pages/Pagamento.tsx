@@ -15,9 +15,11 @@ export default function Pagamento() {
   const [step, setStep] = useState<'processing' | 'payment' | 'success'>(
     'processing',
   )
-  const [orderCode, setOrderCode] = useState<string>('')
+  const [confirmedCode, setConfirmedCode] = useState<string>('')
 
+  // State passed from Pedido page
   const orderId = location.state?.orderId
+  const orderCode = location.state?.orderCode
   const planName = location.state?.planName
 
   useEffect(() => {
@@ -39,7 +41,7 @@ export default function Pagamento() {
     setLoading(true)
 
     try {
-      // Update order status in DB
+      // Update order status in DB using internal UUID
       const { data, error } = await ordersService.updateOrderStatus(
         orderId,
         'Recebido',
@@ -48,7 +50,9 @@ export default function Pagamento() {
       if (error) throw error
 
       if (data) {
-        setOrderCode(data.id)
+        setConfirmedCode(data.code)
+      } else if (orderCode) {
+        setConfirmedCode(orderCode)
       }
 
       setStep('success')
@@ -65,11 +69,15 @@ export default function Pagamento() {
   }
 
   const copyToClipboard = () => {
-    if (orderCode) {
-      navigator.clipboard.writeText(orderCode)
+    const codeToCopy = confirmedCode || orderCode
+    if (codeToCopy) {
+      navigator.clipboard.writeText(codeToCopy)
       toast({ title: 'Código copiado!' })
     }
   }
+
+  // Display code is primarily the confirmed one, or the one passed in state
+  const displayCode = confirmedCode || orderCode || orderId
 
   if (step === 'processing' || (step === 'payment' && loading)) {
     return (
@@ -97,7 +105,7 @@ export default function Pagamento() {
           </p>
           <div className="flex items-center justify-center gap-2 mb-4">
             <span className="text-3xl font-mono font-bold tracking-wider text-primary">
-              {orderCode || orderId}
+              {displayCode}
             </span>
             <Button
               size="icon"
@@ -173,7 +181,7 @@ export default function Pagamento() {
           <CardHeader className="text-center border-b">
             <CardTitle>Checkout Seguro</CardTitle>
             <p className="text-sm text-muted-foreground">
-              ID Interno: {orderId?.slice(0, 8)}...
+              Código: {displayCode}
             </p>
           </CardHeader>
           <CardContent className="pt-6 space-y-6">

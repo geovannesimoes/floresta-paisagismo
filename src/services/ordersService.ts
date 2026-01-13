@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase/client'
 export interface Order {
   id: string
   display_id: number
+  code: string
   client_name: string
   client_email: string
   client_whatsapp: string
@@ -55,30 +56,32 @@ export const ordersService = {
   async createOrder(order: Partial<Order>) {
     const newOrder = {
       ...order,
-      id: order.id || generateOrderCode(),
+      // We no longer set ID manually, let DB generate UUID
+      code: generateOrderCode(),
       status: 'Recebido', // Force initial status as per requirement
     }
 
+    // Cast to any to avoid type errors with 'code' not yet in generated types
     const { data, error } = await supabase
       .from('orders')
-      .insert(newOrder)
+      .insert(newOrder as any)
       .select()
       .single()
-    return { data, error }
+    return { data: data as Order, error }
   },
 
-  async getClientOrder(email: string, id: string) {
-    // Call RPC for security
+  async getClientOrder(email: string, code: string) {
+    // Call RPC for security, using updated function that checks code
     const { data, error } = await supabase.rpc('get_client_order', {
       p_email: email,
-      p_id: id,
+      p_code: code,
     })
 
     if (error) return { data: null, error }
     if (!data || data.length === 0)
       return { data: null, error: 'Order not found' }
 
-    return this._fetchOrderRelations(data[0])
+    return this._fetchOrderRelations(data[0] as Order)
   },
 
   async getOrdersByEmail(email: string) {
@@ -92,7 +95,7 @@ export const ordersService = {
     if (error) return { data: null, error }
     if (!data || data.length === 0) return { data: [], error: null }
 
-    return { data, error: null }
+    return { data: data as Order[], error: null }
   },
 
   async getOrderWithRelations(id: string) {
@@ -103,7 +106,7 @@ export const ordersService = {
       .single()
 
     if (error) return { data: null, error }
-    return this._fetchOrderRelations(data)
+    return this._fetchOrderRelations(data as Order)
   },
 
   async _fetchOrderRelations(order: Order) {
@@ -131,7 +134,7 @@ export const ordersService = {
         '*, photos:order_photos(*), deliverables:order_deliverables(*), revisions:revision_requests(*)',
       )
       .order('created_at', { ascending: false })
-    return { data, error }
+    return { data: data as Order[], error }
   },
 
   async updateOrderStatus(id: string, status: string) {
@@ -141,7 +144,7 @@ export const ordersService = {
       .eq('id', id)
       .select()
       .single()
-    return { data, error }
+    return { data: data as Order, error }
   },
 
   async uploadOrderPhoto(orderId: string, file: File) {

@@ -38,7 +38,7 @@ export default function AreaCliente() {
   const { user, signIn, signOut } = useAuth() // Use global auth for QA logic
 
   // Standard Login State
-  const [orderId, setOrderId] = useState('')
+  const [orderCode, setOrderCode] = useState('')
   const [email, setEmail] = useState('')
 
   // App Data State
@@ -77,16 +77,15 @@ export default function AreaCliente() {
     setLoading(true)
 
     try {
-      // Normalize inputs: trim, remove # from ID, lowercase email
-      const normalizedId = orderId.trim().replace('#', '')
+      // Normalize inputs: trim, remove #, uppercase code, lowercase email
+      const normalizedCode = orderCode.trim().replace('#', '').toUpperCase()
       const normalizedEmail = email.trim().toLowerCase()
 
       // Stealth QA Access Logic
       if (
         normalizedEmail === 'geovanne_simoes@hotmail.com' &&
-        normalizedId === 'teste'
+        normalizedCode === 'TESTE'
       ) {
-        // Assuming 'teste' is the password for the QA account based on the context
         const { error } = await signIn(normalizedEmail, 'teste')
         if (error) throw error
         toast({ title: 'Login realizado com sucesso' })
@@ -96,7 +95,7 @@ export default function AreaCliente() {
 
       const { data, error } = await ordersService.getClientOrder(
         normalizedEmail,
-        normalizedId,
+        normalizedCode,
       )
 
       if (error || !data) {
@@ -120,7 +119,7 @@ export default function AreaCliente() {
       await signOut()
     }
     // Reset all states
-    setOrderId('')
+    setOrderCode('')
     setEmail('')
     setCurrentOrder(null)
     setOrders([])
@@ -147,8 +146,13 @@ export default function AreaCliente() {
         )
         if (details.data) setCurrentOrder(details.data)
       } else {
-        // Standard user refresh
-        handleStandardLogin({ preventDefault: () => {} } as any)
+        // Standard user refresh - re-fetch using stored credentials logic
+        // We can't reuse the exact handleStandardLogin easily without event, so we refetch directly
+        const { data } = await ordersService.getClientOrder(
+          currentOrder.client_email,
+          currentOrder.code,
+        )
+        if (data) setCurrentOrder(data)
       }
     }
   }
@@ -190,8 +194,8 @@ export default function AreaCliente() {
                   </label>
                   <Input
                     placeholder="Ex: A1B2C3D4"
-                    value={orderId}
-                    onChange={(e) => setOrderId(e.target.value)}
+                    value={orderCode}
+                    onChange={(e) => setOrderCode(e.target.value)}
                     className="h-11 font-mono uppercase"
                   />
                 </div>
@@ -290,11 +294,11 @@ export default function AreaCliente() {
           </span>
         </div>
 
-        {/* QA Order Selector if multiple */}
+        {/* QA Order Selector if multiple (Only visible to authenticated QA users) */}
         {user && orders.length > 1 && (
           <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-sm font-bold text-yellow-800 mb-2">
-              Seus Pedidos:
+              Seus Pedidos (QA):
             </p>
             <div className="flex gap-2 flex-wrap">
               {orders.map((o) => (
@@ -309,7 +313,7 @@ export default function AreaCliente() {
                     if (details.data) setCurrentOrder(details.data)
                   }}
                 >
-                  #{o.id} - {o.plan}
+                  #{o.code} - {o.plan}
                 </Button>
               ))}
             </div>
@@ -329,8 +333,10 @@ export default function AreaCliente() {
             <Package className="h-10 w-10 text-primary" />
             <div>
               <p className="text-sm text-muted-foreground">
-                Status do Pedido{' '}
-                <span className="font-mono">#{currentOrder.id}</span>
+                Código do Pedido{' '}
+                <span className="font-mono font-bold">
+                  #{currentOrder.code}
+                </span>
               </p>
               <Badge
                 className={`${getStatusColor(currentOrder.status)} text-white mt-1`}

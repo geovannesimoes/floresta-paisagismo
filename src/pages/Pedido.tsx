@@ -107,14 +107,19 @@ export default function Pedido() {
 
       if (error || !order) throw error || new Error('Failed to create order')
 
-      // Upload Photos
+      // Upload Photos using the internal ID (UUID)
       const uploadPromises = photos.map((photo) =>
         ordersService.uploadOrderPhoto(order.id, photo),
       )
       await Promise.all(uploadPromises)
 
+      // Navigate passing both ID (for internal use) and Code (for display)
       navigate('/pagamento', {
-        state: { orderId: order.id, planName: selectedPlan },
+        state: {
+          orderId: order.id,
+          orderCode: order.code,
+          planName: selectedPlan,
+        },
       })
     } catch (error: any) {
       console.error(error)
