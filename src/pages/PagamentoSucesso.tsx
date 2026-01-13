@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
   CheckCircle2,
@@ -27,7 +27,7 @@ export default function PagamentoSucesso() {
   const [loading, setLoading] = useState(true)
   const [polling, setPolling] = useState(false)
 
-  const fetchOrder = async () => {
+  const fetchOrder = useCallback(async () => {
     if (!code) return
     setPolling(true)
     const { data } = await ordersService.getOrderByCode(code)
@@ -36,7 +36,7 @@ export default function PagamentoSucesso() {
     }
     setLoading(false)
     setPolling(false)
-  }
+  }, [code])
 
   useEffect(() => {
     if (!code) {
@@ -49,14 +49,17 @@ export default function PagamentoSucesso() {
             navigate(`/pagamento/sucesso?code=${savedCode}`, { replace: true })
             return
           }
-        } catch (e) {}
+        } catch (e) {
+          // Ignore JSON parse error
+          console.error('Error parsing lastOrder:', e)
+        }
       }
       navigate('/')
       return
     }
 
     fetchOrder()
-  }, [code, navigate])
+  }, [code, navigate, fetchOrder])
 
   const copyToClipboard = () => {
     if (code) {
@@ -66,7 +69,6 @@ export default function PagamentoSucesso() {
   }
 
   const isPaid = order?.payment_status === 'PAID'
-  const isPending = order?.payment_status === 'PENDING'
 
   if (loading) {
     return (
