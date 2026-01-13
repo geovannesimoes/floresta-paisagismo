@@ -43,70 +43,53 @@ export interface RevisionRequest {
   created_at: string
 }
 
-const generateOrderCode = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-  let code = ''
-  for (let i = 0; i < 8; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  return code
-}
-
 export const ordersService = {
   async createOrder(order: Partial<Order>) {
-    // Retry logic to ensure unique code generation
-    let attempts = 0
-    const maxAttempts = 3
-    let savedOrder: Order | null = null
-    let lastError = null
+    // Uses RPC to bypass RLS and ensure secure creation
+    const { data, error } = await supabase.rpc('create_order_and_return', {
+      p_client_name: order.client_name,
+      p_client_email: order.client_email,
+      p_client_whatsapp: order.client_whatsapp,
+      p_property_type: order.property_type,
+      p_dimensions: order.dimensions,
+      p_preferences: order.preferences,
+      p_notes: order.notes,
+      p_plan: order.plan,
+    })
 
-    while (attempts < maxAttempts && !savedOrder) {
-      attempts++
-      const code = generateOrderCode()
+    if (error) return { data: null, error }
 
-      // Remove id if present to let DB handle UUID generation
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { id, ...orderData } = order as any
+    // RPC returns SETOF, so we get an array, take the first one
+    const createdOrder = Array.isArray(data) ? data[0] : data
+    return { data: createdOrder as Order, error: null }
+  },
 
-      const newOrder = {
-        ...orderData,
-        code,
-        // Use passed status or default to 'Aguardando Pagamento'
-        status: orderData.status || 'Aguardando Pagamento',
-      }
+  async confirmPayment(orderId: string, orderCode: string, email: string) {
+    // Uses RPC to securely update status without direct update permission
+    const { data, error } = await supabase.rpc('confirm_order_payment', {
+      p_order_id: orderId,
+      p_order_code: orderCode,
+      p_email: email,
+    })
 
-      const { data, error } = await supabase
-        .from('orders')
-        .insert(newOrder)
-        .select()
-        .single()
+    if (error) return { data: null, error }
 
-      if (!error && data) {
-        savedOrder = data as Order
-      } else {
-        lastError = error
-        // If error is not about uniqueness, break loop and return error
-        if (error?.code !== '23505') {
-          break
-        }
-      }
-    }
-
-    return { data: savedOrder, error: savedOrder ? null : lastError }
+    const updatedOrder = Array.isArray(data) ? data[0] : data
+    return { data: updatedOrder as Order, error: null }
   },
 
   async getClientOrder(email: string, code: string) {
-    // Use the RPC that filters by code and email (case insensitive email)
-    const { data, error } = await supabase.rpc('get_client_order', {
+    // Uses RPC that returns full JSON object to bypass RLS on related tables
+    const { data, error } = await supabase.rpc('get_client_order_details', {
       p_email: email,
       p_code: code,
     })
 
     if (error) return { data: null, error }
-    if (!data || data.length === 0)
-      return { data: null, error: 'Pedido não encontrado' }
+    if (!data) return { data: null, error: 'Pedido não encontrado' }
 
-    return this._fetchOrderRelations(data[0] as Order)
+    // Data comes as JSON, no need to fetch relations manually
+    return { data: data as Order, error: null }
   },
 
   async getOrdersByEmail(email: string) {
@@ -124,6 +107,7 @@ export const ordersService = {
   },
 
   async getOrderWithRelations(id: string) {
+    // For authenticated users (Admin/QA) we can still use standard selects
     const { data, error } = await supabase
       .from('orders')
       .select('*')
@@ -163,6 +147,7 @@ export const ordersService = {
   },
 
   async updateOrderStatus(id: string, status: string) {
+    // Kept for Admin usage
     const { data, error } = await supabase
       .from('orders')
       .update({ status, updated_at: new Date().toISOString() })

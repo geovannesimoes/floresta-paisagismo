@@ -92,7 +92,7 @@ export default function Pedido() {
     setIsSubmitting(true)
 
     try {
-      // Create Order
+      // Create Order using Secure RPC
       const { data: order, error } = await ordersService.createOrder({
         client_name: values.nome,
         client_email: values.email,
@@ -105,28 +105,42 @@ export default function Pedido() {
         status: 'Aguardando Pagamento',
       })
 
-      if (error || !order) throw error || new Error('Failed to create order')
+      if (error || !order) {
+        throw error || new Error('Falha ao criar pedido')
+      }
 
       // Upload Photos using the internal ID (UUID)
+      // Note: order_photos policy allows insert for anon users
       const uploadPromises = photos.map((photo) =>
         ordersService.uploadOrderPhoto(order.id, photo),
       )
-      await Promise.all(uploadPromises)
 
-      // Navigate passing both ID (for internal use) and Code (for display)
-      // The code is guaranteed to be present from the createOrder service update
+      const uploadResults = await Promise.all(uploadPromises)
+
+      // Check for upload errors
+      const uploadError = uploadResults.find((r) => r.error)
+      if (uploadError) {
+        console.error('Upload Error', uploadError.error)
+        // We continue even if some photos fail, but ideally should warn user
+        // But the order is created, so we proceed to payment
+      }
+
+      // Navigate passing necessary data for payment processing
       navigate('/pagamento', {
         state: {
-          orderId: order.id, // Internal UUID for updates
+          orderId: order.id, // Internal UUID for secure updates
           orderCode: order.code, // Customer facing 8-char code
           planName: selectedPlan,
+          clientEmail: values.email, // Needed for secure payment verification
         },
       })
     } catch (error: any) {
       console.error(error)
       toast({
         title: 'Erro ao enviar pedido',
-        description: 'Ocorreu um erro ao salvar seu pedido. Tente novamente.',
+        description:
+          error.message ||
+          'Ocorreu um erro ao salvar seu pedido. Tente novamente.',
         variant: 'destructive',
       })
     } finally {

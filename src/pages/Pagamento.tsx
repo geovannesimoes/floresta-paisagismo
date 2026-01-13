@@ -22,6 +22,7 @@ export default function Pagamento() {
   const orderId = location.state?.orderId
   const initialOrderCode = location.state?.orderCode
   const planName = location.state?.planName
+  const clientEmail = location.state?.clientEmail
 
   useEffect(() => {
     // If we don't have ID or Code, redirect to home
@@ -43,13 +44,23 @@ export default function Pagamento() {
   }, [orderId, initialOrderCode, navigate])
 
   const handleSimulatePayment = async () => {
+    if (!clientEmail) {
+      toast({
+        title: 'Erro de sessão',
+        description: 'Dados do pedido incompletos. Tente refazer o pedido.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     setLoading(true)
 
     try {
-      // Update order status in DB using internal UUID
-      const { data, error } = await ordersService.updateOrderStatus(
+      // Update order status securely via RPC using ID, Code and Email
+      const { data, error } = await ordersService.confirmPayment(
         orderId,
-        'Recebido',
+        confirmedCode,
+        clientEmail,
       )
 
       if (error) throw error
@@ -60,11 +71,13 @@ export default function Pagamento() {
       }
 
       setStep('success')
-    } catch (error) {
+    } catch (error: any) {
       console.error(error)
       toast({
         title: 'Erro no pagamento',
-        description: 'Não foi possível confirmar o pagamento. Tente novamente.',
+        description:
+          error.message ||
+          'Não foi possível confirmar o pagamento. Tente novamente.',
         variant: 'destructive',
       })
     } finally {
