@@ -54,24 +54,45 @@ const generateOrderCode = () => {
 
 export const ordersService = {
   async createOrder(order: Partial<Order>) {
-    // Generate code and ensure no ID is passed (let DB handle UUID)
-    const { id, ...orderData } = order as any
+    // Retry logic to ensure unique code generation
+    let attempts = 0
+    const maxAttempts = 3
+    let savedOrder: Order | null = null
+    let lastError = null
 
-    const newOrder = {
-      ...orderData,
-      code: generateOrderCode(),
-      // Use passed status or default to 'Aguardando Pagamento'
-      status: orderData.status || 'Aguardando Pagamento',
+    while (attempts < maxAttempts && !savedOrder) {
+      attempts++
+      const code = generateOrderCode()
+
+      // Remove id if present to let DB handle UUID generation
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id, ...orderData } = order as any
+
+      const newOrder = {
+        ...orderData,
+        code,
+        // Use passed status or default to 'Aguardando Pagamento'
+        status: orderData.status || 'Aguardando Pagamento',
+      }
+
+      const { data, error } = await supabase
+        .from('orders')
+        .insert(newOrder)
+        .select()
+        .single()
+
+      if (!error && data) {
+        savedOrder = data as Order
+      } else {
+        lastError = error
+        // If error is not about uniqueness, break loop and return error
+        if (error?.code !== '23505') {
+          break
+        }
+      }
     }
 
-    // Insert into DB
-    const { data, error } = await supabase
-      .from('orders')
-      .insert(newOrder)
-      .select()
-      .single()
-
-    return { data: data as Order, error }
+    return { data: savedOrder, error: savedOrder ? null : lastError }
   },
 
   async getClientOrder(email: string, code: string) {

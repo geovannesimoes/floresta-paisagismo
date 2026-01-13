@@ -1,14 +1,5 @@
 import { useState, useEffect } from 'react'
-import {
-  Search,
-  Download,
-  Package,
-  List,
-  ArrowRight,
-  FileText,
-  Send,
-  Loader2,
-} from 'lucide-react'
+import { Download, Package, FileText, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -81,10 +72,10 @@ export default function AreaCliente() {
       const normalizedCode = orderCode.trim().replace('#', '').toUpperCase()
       const normalizedEmail = email.trim().toLowerCase()
 
-      // Stealth QA Access Logic
+      // Stealth QA Access Logic with updated code 'TESTE123'
       if (
         normalizedEmail === 'geovanne_simoes@hotmail.com' &&
-        normalizedCode === 'TESTE'
+        normalizedCode === 'TESTE123'
       ) {
         const { error } = await signIn(normalizedEmail, 'teste')
         if (error) throw error
@@ -148,7 +139,6 @@ export default function AreaCliente() {
         if (details.data) setCurrentOrder(details.data)
       } else {
         // Standard user refresh - re-fetch using stored credentials logic
-        // We can't reuse the exact handleStandardLogin easily without event, so we refetch directly
         const { data } = await ordersService.getClientOrder(
           currentOrder.client_email,
           currentOrder.code,
@@ -229,16 +219,12 @@ export default function AreaCliente() {
   // Group deliverables logic with plan-based filtering
   const groupDeliverables = (items: OrderDeliverable[], planName: string) => {
     const plan = PLAN_DETAILS[planName as PlanName]
-    // Create base groups but only for allowed features
     const allowedChecklist = plan ? plan.checklist : []
 
-    // Helper to check if a section is allowed by plan
     const isSectionAllowed = (sectionName: string) => {
-      // Map section name to checklist items it contains
       const sectionItems =
         DELIVERABLE_SECTIONS[sectionName as keyof typeof DELIVERABLE_SECTIONS]
-      if (!sectionItems) return true // Default allow if not restricted
-      // Section is allowed if ANY of its items are in the plan's checklist
+      if (!sectionItems) return true
       return sectionItems.some((item) => allowedChecklist.includes(item))
     }
 
@@ -249,21 +235,17 @@ export default function AreaCliente() {
       'Guia detalhado de plantio': [],
     }
 
-    // Only initialize allowed groups
     Object.keys(groups).forEach((key) => {
       if (!isSectionAllowed(key)) {
         delete groups[key]
       }
     })
 
-    // Add "Outros" always
     groups['Outros'] = []
 
     items.forEach((item) => {
       let matched = false
-      // Map item titles to sections based on DELIVERABLE_SECTIONS reverse lookup
       for (const [section, keywords] of Object.entries(DELIVERABLE_SECTIONS)) {
-        // If item title exactly matches one of the keywords (categories)
         if (keywords.includes(item.title) && groups[section]) {
           groups[section].push(item)
           matched = true
@@ -295,7 +277,7 @@ export default function AreaCliente() {
           </span>
         </div>
 
-        {/* QA Order Selector if multiple (Only visible to authenticated QA users) */}
+        {/* QA Order Selector */}
         {user && orders.length > 1 && (
           <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-sm font-bold text-yellow-800 mb-2">

@@ -114,6 +114,7 @@ export default function Pedido() {
       await Promise.all(uploadPromises)
 
       // Navigate passing both ID (for internal use) and Code (for display)
+      // The code is guaranteed to be present from the createOrder service update
       navigate('/pagamento', {
         state: {
           orderId: order.id, // Internal UUID for updates

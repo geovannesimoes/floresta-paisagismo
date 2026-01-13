@@ -20,15 +20,18 @@ export default function Pagamento() {
 
   // State passed from Pedido page
   const orderId = location.state?.orderId
-  const orderCode = location.state?.orderCode
+  const initialOrderCode = location.state?.orderCode
   const planName = location.state?.planName
 
   useEffect(() => {
     // If we don't have ID or Code, redirect to home
-    if (!orderId || !orderCode) {
+    if (!orderId || !initialOrderCode) {
       navigate('/')
       return
     }
+
+    // Set initial confirmed code from navigation state
+    setConfirmedCode(initialOrderCode)
 
     // Simulate initial loading of payment gateway
     const timer = setTimeout(() => {
@@ -37,7 +40,7 @@ export default function Pagamento() {
     }, 2000)
 
     return () => clearTimeout(timer)
-  }, [orderId, orderCode, navigate])
+  }, [orderId, initialOrderCode, navigate])
 
   const handleSimulatePayment = async () => {
     setLoading(true)
@@ -52,9 +55,8 @@ export default function Pagamento() {
       if (error) throw error
 
       if (data) {
+        // Ensure we update with the fresh code from DB if it changed (unlikely but safe)
         setConfirmedCode(data.code)
-      } else {
-        setConfirmedCode(orderCode)
       }
 
       setStep('success')
@@ -71,15 +73,11 @@ export default function Pagamento() {
   }
 
   const copyToClipboard = () => {
-    const codeToCopy = confirmedCode || orderCode
-    if (codeToCopy) {
-      navigator.clipboard.writeText(codeToCopy)
+    if (confirmedCode) {
+      navigator.clipboard.writeText(confirmedCode)
       toast({ title: 'Código copiado!' })
     }
   }
-
-  // Ensure we only display the alphanumeric code, never the UUID
-  const displayCode = confirmedCode || orderCode
 
   if (step === 'processing' || (step === 'payment' && loading)) {
     return (
@@ -107,7 +105,7 @@ export default function Pagamento() {
           </p>
           <div className="flex items-center justify-center gap-2 mb-4">
             <span className="text-3xl font-mono font-bold tracking-wider text-primary">
-              {displayCode}
+              {confirmedCode}
             </span>
             <Button
               size="icon"
@@ -183,7 +181,8 @@ export default function Pagamento() {
           <CardHeader className="text-center border-b">
             <CardTitle>Checkout Seguro</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Pedido: <span className="font-mono font-bold">{displayCode}</span>
+              Pedido:{' '}
+              <span className="font-mono font-bold">{confirmedCode}</span>
             </p>
           </CardHeader>
           <CardContent className="pt-6 space-y-6">
