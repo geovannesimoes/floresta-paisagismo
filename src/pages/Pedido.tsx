@@ -116,8 +116,8 @@ export default function Pedido() {
       // Navigate passing both ID (for internal use) and Code (for display)
       navigate('/pagamento', {
         state: {
-          orderId: order.id,
-          orderCode: order.code,
+          orderId: order.id, // Internal UUID for updates
+          orderCode: order.code, // Customer facing 8-char code
           planName: selectedPlan,
         },
       })
@@ -125,7 +125,7 @@ export default function Pedido() {
       console.error(error)
       toast({
         title: 'Erro ao enviar pedido',
-        description: 'Tente novamente mais tarde.',
+        description: 'Ocorreu um erro ao salvar seu pedido. Tente novamente.',
         variant: 'destructive',
       })
     } finally {

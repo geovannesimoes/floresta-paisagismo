@@ -54,24 +54,28 @@ const generateOrderCode = () => {
 
 export const ordersService = {
   async createOrder(order: Partial<Order>) {
+    // Generate code and ensure no ID is passed (let DB handle UUID)
+    const { id, ...orderData } = order as any
+
     const newOrder = {
-      ...order,
-      // We no longer set ID manually, let DB generate UUID
+      ...orderData,
       code: generateOrderCode(),
-      status: 'Recebido', // Force initial status as per requirement
+      // Use passed status or default to 'Aguardando Pagamento'
+      status: orderData.status || 'Aguardando Pagamento',
     }
 
-    // Cast to any to avoid type errors with 'code' not yet in generated types
+    // Insert into DB
     const { data, error } = await supabase
       .from('orders')
-      .insert(newOrder as any)
+      .insert(newOrder)
       .select()
       .single()
+
     return { data: data as Order, error }
   },
 
   async getClientOrder(email: string, code: string) {
-    // Call RPC for security, using updated function that checks code
+    // Use the RPC that filters by code and email (case insensitive email)
     const { data, error } = await supabase.rpc('get_client_order', {
       p_email: email,
       p_code: code,
@@ -79,7 +83,7 @@ export const ordersService = {
 
     if (error) return { data: null, error }
     if (!data || data.length === 0)
-      return { data: null, error: 'Order not found' }
+      return { data: null, error: 'Pedido não encontrado' }
 
     return this._fetchOrderRelations(data[0] as Order)
   },
@@ -205,8 +209,7 @@ export const ordersService = {
     if (item && item.url) {
       try {
         const urlObj = new URL(item.url)
-        // Storage path is relative to bucket root. URL: .../storage/v1/object/public/order-uploads/...
-        // We need the path after the bucket name
+        // Storage path is relative to bucket root.
         const path = urlObj.pathname.split('/order-uploads/')[1]
         if (path) {
           await supabase.storage

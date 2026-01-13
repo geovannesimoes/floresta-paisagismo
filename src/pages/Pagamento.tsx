@@ -15,6 +15,7 @@ export default function Pagamento() {
   const [step, setStep] = useState<'processing' | 'payment' | 'success'>(
     'processing',
   )
+  // Store the final code to display after successful payment update
   const [confirmedCode, setConfirmedCode] = useState<string>('')
 
   // State passed from Pedido page
@@ -23,7 +24,8 @@ export default function Pagamento() {
   const planName = location.state?.planName
 
   useEffect(() => {
-    if (!orderId) {
+    // If we don't have ID or Code, redirect to home
+    if (!orderId || !orderCode) {
       navigate('/')
       return
     }
@@ -35,7 +37,7 @@ export default function Pagamento() {
     }, 2000)
 
     return () => clearTimeout(timer)
-  }, [orderId, navigate])
+  }, [orderId, orderCode, navigate])
 
   const handleSimulatePayment = async () => {
     setLoading(true)
@@ -51,7 +53,7 @@ export default function Pagamento() {
 
       if (data) {
         setConfirmedCode(data.code)
-      } else if (orderCode) {
+      } else {
         setConfirmedCode(orderCode)
       }
 
@@ -76,8 +78,8 @@ export default function Pagamento() {
     }
   }
 
-  // Display code is primarily the confirmed one, or the one passed in state
-  const displayCode = confirmedCode || orderCode || orderId
+  // Ensure we only display the alphanumeric code, never the UUID
+  const displayCode = confirmedCode || orderCode
 
   if (step === 'processing' || (step === 'payment' && loading)) {
     return (
@@ -181,7 +183,7 @@ export default function Pagamento() {
           <CardHeader className="text-center border-b">
             <CardTitle>Checkout Seguro</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Código: {displayCode}
+              Pedido: <span className="font-mono font-bold">{displayCode}</span>
             </p>
           </CardHeader>
           <CardContent className="pt-6 space-y-6">

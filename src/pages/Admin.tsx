@@ -407,7 +407,7 @@ export default function Admin() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ID</TableHead>
+                      <TableHead>Código</TableHead>
                       <TableHead>Cliente</TableHead>
                       <TableHead>Plano</TableHead>
                       <TableHead>Status</TableHead>
@@ -419,8 +419,8 @@ export default function Admin() {
                       const planInfo = getPlanDetails(order.plan)
                       return (
                         <TableRow key={order.id}>
-                          <TableCell className="font-mono">
-                            {order.id}
+                          <TableCell className="font-mono font-bold">
+                            {order.code}
                           </TableCell>
                           <TableCell>
                             <div className="font-medium">
@@ -432,7 +432,7 @@ export default function Admin() {
                           </TableCell>
                           <TableCell>
                             <span className="font-medium">
-                              Plano: Projeto {order.plan} — R$ {planInfo.price}
+                              Projeto {order.plan}
                             </span>
                           </TableCell>
                           <TableCell>
@@ -889,352 +889,355 @@ export default function Admin() {
               </div>
             </div>
           </TabsContent>
-        </Tabs>
 
-        {/* ORDER MODAL */}
-        <Dialog open={isOrderDialogOpen} onOpenChange={setIsOrderDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Gerenciar Pedido</DialogTitle>
-            </DialogHeader>
-            {selectedOrder && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-4">
-                  <div className="bg-muted p-4 rounded-lg text-sm">
-                    <p>
-                      <strong>Código:</strong>{' '}
-                      <span className="font-mono">{selectedOrder.id}</span>
-                    </p>
-                    <p>
-                      <strong>Cliente:</strong> {selectedOrder.client_name}
-                    </p>
-                    <p>
-                      <strong>Email:</strong> {selectedOrder.client_email}
-                    </p>
-                    <p>
-                      <strong>Plano:</strong> Projeto {selectedOrder.plan} — R${' '}
-                      {getPlanDetails(selectedOrder.plan).price}
-                    </p>
-                    <p>
-                      <strong>Imóvel:</strong> {selectedOrder.property_type}
-                    </p>
-                    <p>
-                      <strong>Medidas:</strong>{' '}
-                      {selectedOrder.dimensions || 'N/A'}
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Alterar Status</Label>
-                    <Select
-                      value={selectedOrder.status}
-                      onValueChange={handleUpdateOrderStatus}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Aguardando Pagamento">
-                          Aguardando Pagamento
-                        </SelectItem>
-                        <SelectItem value="Recebido">Recebido</SelectItem>
-                        <SelectItem value="Em Produção">Em Produção</SelectItem>
-                        <SelectItem value="Enviado">Enviado</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <h4 className="font-bold mb-2">Fotos Enviadas</h4>
-                    <div className="grid grid-cols-3 gap-2">
-                      {selectedOrder.photos?.map((p) => (
-                        <a
-                          key={p.id}
-                          href={p.url}
-                          target="_blank"
-                          className="block aspect-square bg-gray-100 rounded overflow-hidden"
-                        >
-                          <img
-                            src={p.url}
-                            className="w-full h-full object-cover"
-                          />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  <div className="border rounded-lg p-4">
-                    <div className="flex justify-between items-center mb-4">
-                      <h4 className="font-bold">Checklist de Entrega</h4>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger>
-                            <Info className="h-4 w-4 text-muted-foreground" />
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            Itens marcados já possuem arquivos enviados.
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+          {/* ORDER MODAL */}
+          <Dialog open={isOrderDialogOpen} onOpenChange={setIsOrderDialogOpen}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Gerenciar Pedido</DialogTitle>
+              </DialogHeader>
+              {selectedOrder && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <div className="bg-muted p-4 rounded-lg text-sm">
+                      <p>
+                        <strong>Código:</strong>{' '}
+                        <span className="font-mono font-bold">{selectedOrder.code}</span>
+                      </p>
+                      <p>
+                        <strong>Internal ID:</strong>{' '}
+                        <span className="font-mono text-xs">{selectedOrder.id}</span>
+                      </p>
+                      <p>
+                        <strong>Cliente:</strong> {selectedOrder.client_name}
+                      </p>
+                      <p>
+                        <strong>Email:</strong> {selectedOrder.client_email}
+                      </p>
+                      <p>
+                        <strong>Plano:</strong> Projeto {selectedOrder.plan} — R${' '}
+                        {getPlanDetails(selectedOrder.plan).price}
+                      </p>
+                      <p>
+                        <strong>Imóvel:</strong> {selectedOrder.property_type}
+                      </p>
+                      <p>
+                        <strong>Medidas:</strong>{' '}
+                        {selectedOrder.dimensions || 'N/A'}
+                      </p>
                     </div>
 
-                    <div className="space-y-2 mb-6">
-                      {getPlanChecklist(selectedOrder.plan).map((item) => {
-                        const fileCount =
-                          selectedOrder.deliverables?.filter(
-                            (d) => d.title === item,
-                          ).length || 0
-                        const isComplete = fileCount > 0
-
-                        return (
-                          <div
-                            key={item}
-                            className="flex items-center gap-2 text-sm"
-                          >
-                            {isComplete ? (
-                              <CheckCircle className="h-4 w-4 text-green-500" />
-                            ) : (
-                              <div className="h-4 w-4 rounded-full border border-gray-300" />
-                            )}
-                            <span
-                              className={
-                                isComplete
-                                  ? 'text-green-700 font-medium'
-                                  : 'text-gray-600'
-                              }
-                            >
-                              {item} {fileCount > 1 && `(${fileCount})`}
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    <h4 className="font-bold mb-4 border-t pt-4">
-                      Upload de Arquivos
-                    </h4>
-                    <div className="space-y-3">
-                      <div className="space-y-1">
-                        <Label>Categoria</Label>
-                        <Select
-                          value={deliverableCategory}
-                          onValueChange={setDeliverableCategory}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione o tipo..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {DELIVERABLE_CATEGORIES.map((item) => (
-                              <SelectItem key={item} value={item}>
-                                {item}
-                              </SelectItem>
-                            ))}
-                            <SelectItem value="Outros">Outros</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {deliverableCategory === 'Outros' && (
-                        <Input
-                          placeholder="Título personalizado"
-                          value={deliverableCustomTitle}
-                          onChange={(e) =>
-                            setDeliverableCustomTitle(e.target.value)
-                          }
-                        />
-                      )}
-
-                      <div className="space-y-1">
-                        <Label>Arquivos</Label>
-                        <Input
-                          type="file"
-                          multiple
-                          onChange={(e) =>
-                            setDeliverableFiles(
-                              Array.from(e.target.files || []),
-                            )
-                          }
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          {deliverableFiles.length} arquivo(s) selecionado(s)
-                        </p>
-                      </div>
-
-                      <Button
-                        className="w-full"
-                        disabled={isUploading || deliverableFiles.length === 0}
-                        onClick={handleUploadDeliverables}
+                    <div className="space-y-2">
+                      <Label>Alterar Status</Label>
+                      <Select
+                        value={selectedOrder.status}
+                        onValueChange={handleUpdateOrderStatus}
                       >
-                        {isUploading ? 'Enviando...' : 'Enviar Arquivos'}
-                      </Button>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Aguardando Pagamento">
+                            Aguardando Pagamento
+                          </SelectItem>
+                          <SelectItem value="Recebido">Recebido</SelectItem>
+                          <SelectItem value="Em Produção">Em Produção</SelectItem>
+                          <SelectItem value="Enviado">Enviado</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
-                    <div className="mt-4 space-y-2">
-                      {selectedOrder.deliverables?.map((d) => (
-                        <div
-                          key={d.id}
-                          className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded"
-                        >
-                          <span className="truncate flex-1 pr-2">
-                            {d.title}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <a
-                              href={d.url}
-                              target="_blank"
-                              className="text-blue-600 hover:underline flex items-center gap-1"
-                            >
-                              <Eye className="h-3 w-3" /> Ver
-                            </a>
-                            <button
-                              onClick={() => handleDeleteDeliverable(d.id)}
-                              className="text-red-500 hover:text-red-700 flex items-center gap-1 ml-2"
-                            >
-                              <Trash className="h-3 w-3" /> Excluir
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                    <div>
+                      <h4 className="font-bold mb-2">Fotos Enviadas</h4>
+                      <div className="grid grid-cols-3 gap-2">
+                        {selectedOrder.photos?.map((p) => (
+                          <a
+                            key={p.id}
+                            href={p.url}
+                            target="_blank"
+                            className="block aspect-square bg-gray-100 rounded overflow-hidden"
+                          >
+                            <img
+                              src={p.url}
+                              className="w-full h-full object-cover"
+                            />
+                          </a>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
-                  {selectedOrder.revisions &&
-                    selectedOrder.revisions.length > 0 && (
-                      <div className="border border-red-200 bg-red-50 p-4 rounded-lg">
-                        <h4 className="font-bold text-red-800 mb-2">
-                          Solicitações de Revisão
-                        </h4>
-                        {selectedOrder.revisions.map((rev) => (
-                          <div
-                            key={rev.id}
-                            className="text-sm mb-2 pb-2 border-b border-red-100 last:border-0"
+                  <div className="space-y-6">
+                    <div className="border rounded-lg p-4">
+                      <div className="flex justify-between items-center mb-4">
+                        <h4 className="font-bold">Checklist de Entrega</h4>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <Info className="h-4 w-4 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              Itens marcados já possuem arquivos enviados.
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+
+                      <div className="space-y-2 mb-6">
+                        {getPlanChecklist(selectedOrder.plan).map((item) => {
+                          const fileCount =
+                            selectedOrder.deliverables?.filter(
+                              (d) => d.title === item,
+                            ).length || 0
+                          const isComplete = fileCount > 0
+
+                          return (
+                            <div
+                              key={item}
+                              className="flex items-center gap-2 text-sm"
+                            >
+                              {isComplete ? (
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <div className="h-4 w-4 rounded-full border border-gray-300" />
+                              )}
+                              <span
+                                className={
+                                  isComplete
+                                    ? 'text-green-700 font-medium'
+                                    : 'text-gray-600'
+                                }
+                              >
+                                {item} {fileCount > 1 && `(${fileCount})`}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      <h4 className="font-bold mb-4 border-t pt-4">
+                        Upload de Arquivos
+                      </h4>
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <Label>Categoria</Label>
+                          <Select
+                            value={deliverableCategory}
+                            onValueChange={setDeliverableCategory}
                           >
-                            <p>{rev.description}</p>
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(rev.created_at).toLocaleString()}
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o tipo..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DELIVERABLE_CATEGORIES.map((item) => (
+                                <SelectItem key={item} value={item}>
+                                  {item}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="Outros">Outros</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {deliverableCategory === 'Outros' && (
+                          <Input
+                            placeholder="Título personalizado"
+                            value={deliverableCustomTitle}
+                            onChange={(e) =>
+                              setDeliverableCustomTitle(e.target.value)
+                            }
+                          />
+                        )}
+
+                        <div className="space-y-1">
+                          <Label>Arquivos</Label>
+                          <Input
+                            type="file"
+                            multiple
+                            onChange={(e) =>
+                              setDeliverableFiles(
+                                Array.from(e.target.files || []),
+                              )
+                            }
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            {deliverableFiles.length} arquivo(s) selecionado(s)
+                          </p>
+                        </div>
+
+                        <Button
+                          className="w-full"
+                          disabled={isUploading || deliverableFiles.length === 0}
+                          onClick={handleUploadDeliverables}
+                        >
+                          {isUploading ? 'Enviando...' : 'Enviar Arquivos'}
+                        </Button>
+                      </div>
+
+                      <div className="mt-4 space-y-2">
+                        {selectedOrder.deliverables?.map((d) => (
+                          <div
+                            key={d.id}
+                            className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded"
+                          >
+                            <span className="truncate flex-1 pr-2">
+                              {d.title}
                             </span>
+                            <div className="flex items-center gap-2">
+                              <a
+                                href={d.url}
+                                target="_blank"
+                                className="text-blue-600 hover:underline flex items-center gap-1"
+                              >
+                                <Eye className="h-3 w-3" /> Ver
+                              </a>
+                              <button
+                                onClick={() => handleDeleteDeliverable(d.id)}
+                                className="text-red-500 hover:text-red-700 flex items-center gap-1 ml-2"
+                              >
+                                <Trash className="h-3 w-3" /> Excluir
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
-                    )}
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+                    </div>
 
-        {/* PROJECT MODAL */}
-        <Dialog
-          open={isProjectDialogOpen}
-          onOpenChange={setIsProjectDialogOpen}
-        >
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Editar Projeto</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Título</Label>
-                  <Input
-                    value={editingProject.title || ''}
-                    onChange={(e) =>
-                      setEditingProject({
-                        ...editingProject,
-                        title: e.target.value,
-                      })
-                    }
-                  />
+                    {selectedOrder.revisions &&
+                      selectedOrder.revisions.length > 0 && (
+                        <div className="border border-red-200 bg-red-50 p-4 rounded-lg">
+                          <h4 className="font-bold text-red-800 mb-2">
+                            Solicitações de Revisão
+                          </h4>
+                          {selectedOrder.revisions.map((rev) => (
+                            <div
+                              key={rev.id}
+                              className="text-sm mb-2 pb-2 border-b border-red-100 last:border-0"
+                            >
+                              <p>{rev.description}</p>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(rev.created_at).toLocaleString()}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 mt-8">
-                  <input
-                    type="checkbox"
-                    checked={editingProject.is_featured || false}
-                    onChange={(e) =>
-                      setEditingProject({
-                        ...editingProject,
-                        is_featured: e.target.checked,
-                      })
-                    }
-                    className="w-4 h-4"
-                  />
-                  <Label>Destaque na Home?</Label>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Descrição</Label>
-                <Textarea
-                  value={editingProject.description || ''}
-                  onChange={(e) =>
-                    setEditingProject({
-                      ...editingProject,
-                      description: e.target.value,
-                    })
-                  }
-                />
-              </div>
+              )}
+            </DialogContent>
+          </Dialog>
 
-              <div className="border-t pt-4">
-                <h4 className="font-bold mb-2">Galeria de Imagens</h4>
-                <div className="flex gap-2 items-end mb-4">
-                  <div className="flex-1">
+          {/* PROJECT MODAL */}
+          <Dialog
+            open={isProjectDialogOpen}
+            onOpenChange={setIsProjectDialogOpen}
+          >
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Editar Projeto</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Título</Label>
                     <Input
-                      type="file"
+                      value={editingProject.title || ''}
                       onChange={(e) =>
-                        setNewMediaFile(e.target.files?.[0] || null)
+                        setEditingProject({
+                          ...editingProject,
+                          title: e.target.value,
+                        })
                       }
                     />
                   </div>
-                  <Select
-                    value={newMediaType}
-                    onValueChange={(v: any) => setNewMediaType(v)}
-                  >
-                    <SelectTrigger className="w-[120px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="before">Antes</SelectItem>
-                      <SelectItem value="after">Depois</SelectItem>
-                      <SelectItem value="gallery">Galeria</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button onClick={handleAddMedia} disabled={isUploading}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-2 mt-8">
+                    <input
+                      type="checkbox"
+                      checked={editingProject.is_featured || false}
+                      onChange={(e) =>
+                        setEditingProject({
+                          ...editingProject,
+                          is_featured: e.target.checked,
+                        })
+                      }
+                      className="w-4 h-4"
+                    />
+                    <Label>Destaque na Home?</Label>
+                  </div>
                 </div>
-                <div className="grid grid-cols-4 gap-2">
-                  {mediaList.map((m) => (
-                    <div
-                      key={m.id}
-                      className="relative aspect-square bg-gray-100 rounded overflow-hidden group"
-                    >
-                      <img src={m.url} className="w-full h-full object-cover" />
-                      <div className="absolute bottom-0 left-0 w-full bg-black/60 text-white text-xs p-1 text-center">
-                        {m.type}
-                      </div>
-                      <button
-                        onClick={() => handleDeleteMedia(m.id!)}
-                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
+                <div className="space-y-2">
+                  <Label>Descrição</Label>
+                  <Textarea
+                    value={editingProject.description || ''}
+                    onChange={(e) =>
+                      setEditingProject({
+                        ...editingProject,
+                        description: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="border-t pt-4">
+                  <h4 className="font-bold mb-2">Galeria de Imagens</h4>
+                  <div className="flex gap-2 items-end mb-4">
+                    <div className="flex-1">
+                      <Input
+                        type="file"
+                        onChange={(e) =>
+                          setNewMediaFile(e.target.files?.[0] || null)
+                        }
+                      />
                     </div>
-                  ))}
+                    <Select
+                      value={newMediaType}
+                      onValueChange={(v: any) => setNewMediaType(v)}
+                    >
+                      <SelectTrigger className="w-[120px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="before">Antes</SelectItem>
+                        <SelectItem value="after">Depois</SelectItem>
+                        <SelectItem value="gallery">Galeria</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button onClick={handleAddMedia} disabled={isUploading}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {mediaList.map((m) => (
+                      <div
+                        key={m.id}
+                        className="relative aspect-square bg-gray-100 rounded overflow-hidden group"
+                      >
+                        <img src={m.url} className="w-full h-full object-cover" />
+                        <div className="absolute bottom-0 left-0 w-full bg-black/60 text-white text-xs p-1 text-center">
+                          {m.type}
+                        </div>
+                        <button
+                          onClick={() => handleDeleteMedia(m.id!)}
+                          className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+                <Button
+                  onClick={handleSaveProject}
+                  disabled={loading}
+                  className="w-full mt-4"
+                >
+                  Salvar Projeto
+                </Button>
               </div>
-              <Button
-                onClick={handleSaveProject}
-                disabled={loading}
-                className="w-full mt-4"
-              >
-                Salvar Projeto
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </main>
-    </div>
-  )
+            </DialogContent>
+          </Dialog>
+        </main>
+      </div>
+    )
 }

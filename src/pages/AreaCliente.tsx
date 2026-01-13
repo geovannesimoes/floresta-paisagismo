@@ -93,6 +93,7 @@ export default function AreaCliente() {
         return
       }
 
+      // Customer Login using 8-char Code
       const { data, error } = await ordersService.getClientOrder(
         normalizedEmail,
         normalizedCode,
@@ -190,7 +191,7 @@ export default function AreaCliente() {
               <form onSubmit={handleStandardLogin} className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">
-                    Código do pedido
+                    Código do pedido (8 caracteres)
                   </label>
                   <Input
                     placeholder="Ex: A1B2C3D4"
