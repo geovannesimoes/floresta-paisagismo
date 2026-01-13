@@ -46,14 +46,15 @@ export interface RevisionRequest {
 export const ordersService = {
   async createOrder(order: Partial<Order>) {
     // Uses RPC to bypass RLS and ensure secure creation
+    // We pass data as text, allowing Supabase to handle types or explicit casting in RPC
     const { data, error } = await supabase.rpc('create_order_and_return', {
       p_client_name: order.client_name,
       p_client_email: order.client_email,
-      p_client_whatsapp: order.client_whatsapp,
-      p_property_type: order.property_type,
-      p_dimensions: order.dimensions,
-      p_preferences: order.preferences,
-      p_notes: order.notes,
+      p_client_whatsapp: order.client_whatsapp || null,
+      p_property_type: order.property_type || null,
+      p_dimensions: order.dimensions || null,
+      p_preferences: order.preferences || null,
+      p_notes: order.notes || null,
       p_plan: order.plan,
     })
 
@@ -66,6 +67,7 @@ export const ordersService = {
 
   async confirmPayment(orderId: string, orderCode: string, email: string) {
     // Uses RPC to securely update status without direct update permission
+    // RPC has been updated to accept text for order_id and cast to UUID internally
     const { data, error } = await supabase.rpc('confirm_order_payment', {
       p_order_id: orderId,
       p_order_code: orderCode,
