@@ -1,10 +1,26 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { Upload, X, Loader2, ArrowLeft } from 'lucide-react'
+import {
+  Upload,
+  X,
+  AlertTriangle,
+  ChevronLeft,
+  Loader2,
+  CheckCircle2,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -14,326 +30,400 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
+import { Card, CardContent } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { ordersService } from '@/services/ordersService'
-import { useSeo } from '@/hooks/use-seo'
-import { PLAN_DETAILS, PlanName } from '@/lib/plan-constants'
+import { cn } from '@/lib/utils'
 
 const formSchema = z.object({
-  nome: z.string().min(3, 'Nome muito curto'),
-  email: z.string().email('E-mail inválido'),
-  whatsapp: z.string().min(10, 'Número inválido'),
-  tipoImovel: z.string({ required_error: 'Selecione o tipo de imóvel' }),
-  medidas: z.string().optional(),
-  preferencias: z.string().optional(),
-  observacoes: z.string().optional(),
+  client_name: z
+    .string()
+    .min(3, { message: 'Nome deve ter pelo menos 3 caracteres' }),
+  client_email: z.string().email({ message: 'Email inválido' }),
+  client_whatsapp: z
+    .string()
+    .min(10, { message: 'WhatsApp deve ter DDD + número' }),
+  property_type: z.string({ required_error: 'Selecione o tipo de imóvel' }),
+  dimensions: z
+    .string()
+    .min(1, { message: 'Informe as dimensões aproximadas' }),
+  preferences: z.string().optional(),
+  notes: z.string().optional(),
 })
 
 export default function Pedido() {
-  useSeo({
-    title: 'Finalizar Pedido | Floresta Paisagismo',
-    description: 'Envie as informações do seu projeto e finalize seu pedido.',
-  })
-
-  const { state } = useLocation()
   const navigate = useNavigate()
+  const location = useLocation()
   const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [selectedPlan, setSelectedPlan] = useState('Ipê')
-  const [photos, setPhotos] = useState<File[]>([])
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [files, setFiles] = useState<File[]>([])
+  const [loading, setLoading] = useState(false)
+  const [loadingText, setLoadingText] = useState('')
 
+  const state = location.state as { plan: string; price: number } | undefined
+  const plan = state?.plan
+  const price = state?.price
+
+  // If no plan is selected, redirect back to plans
   useEffect(() => {
-    if (state?.selectedPlan) {
-      setSelectedPlan(state.selectedPlan)
+    if (!plan || !price) {
+      toast({
+        title: 'Plano não selecionado',
+        description: 'Por favor, escolha um plano para continuar.',
+        variant: 'destructive',
+      })
+      navigate('/planos')
     }
-  }, [state])
+  }, [plan, price, navigate, toast])
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      nome: '',
-      email: '',
-      whatsapp: '',
-      medidas: '',
-      preferencias: '',
-      observacoes: '',
+      client_name: '',
+      client_email: '',
+      client_whatsapp: '',
+      property_type: '',
+      dimensions: '',
+      preferences: '',
+      notes: '',
     },
   })
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newPhotos = Array.from(e.target.files)
-      setPhotos([...photos, ...newPhotos])
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles = Array.from(e.target.files)
+      setFiles((prev) => [...prev, ...newFiles])
     }
   }
 
-  const removePhoto = (index: number) => {
-    setPhotos(photos.filter((_, i) => i !== index))
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const newFiles = Array.from(e.dataTransfer.files)
+      // Filter images only
+      const validFiles = newFiles.filter((file) =>
+        file.type.startsWith('image/'),
+      )
+      if (validFiles.length < newFiles.length) {
+        toast({
+          title: 'Arquivo inválido',
+          description: 'Apenas imagens são permitidas.',
+          variant: 'destructive',
+        })
+      }
+      setFiles((prev) => [...prev, ...validFiles])
+    }
   }
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    if (photos.length === 0) {
+    if (files.length === 0) {
       toast({
         title: 'Fotos necessárias',
-        description: 'Por favor, envie pelo menos uma foto do seu espaço.',
+        description: 'Por favor, adicione pelo menos uma foto do espaço.',
         variant: 'destructive',
       })
       return
     }
 
-    setIsSubmitting(true)
+    if (!plan || !price) return
+
+    setLoading(true)
+    setLoadingText('Criando seu pedido...')
 
     try {
-      // Get price from constants
-      const planInfo = PLAN_DETAILS[selectedPlan as PlanName]
-      const price = parseFloat(planInfo.price.replace(',', '.'))
+      // 1. Create Order and Checkout
+      const checkoutResult = await ordersService.createCheckout({
+        ...values,
+        plan,
+        price,
+      })
 
-      // 1. Create Checkout via Edge Function
-      const { orderCode, checkoutUrl, error } =
-        await ordersService.createCheckout({
-          client_name: values.nome,
-          client_email: values.email,
-          client_whatsapp: values.whatsapp,
-          property_type: values.tipoImovel,
-          dimensions: values.medidas,
-          preferences: values.preferencias,
-          notes: values.observacoes,
-          plan: selectedPlan,
-          price: price,
-        })
-
-      if (error || !orderCode) {
-        throw new Error(error || 'Failed to initiate checkout')
+      if (checkoutResult.error) {
+        throw new Error(checkoutResult.error)
       }
 
-      // 2. Upload Photos in background (Using orderCode as OrderID)
-      // We do this optimistically. If upload fails, support can handle it.
-      const uploadPromises = photos.map((photo) =>
-        ordersService.uploadOrderPhoto(orderCode, photo),
-      )
+      const { orderCode, checkoutUrl } = checkoutResult
 
-      // We don't await uploads to speed up UX? Better to await to ensure photos are there.
-      // But for better UX, we could await.
-      await Promise.all(uploadPromises)
+      // 2. Upload Photos
+      setLoadingText('Enviando fotos...')
+
+      // Upload sequentially to avoid overwhelming connection/storage logic if many files
+      let uploadErrors = 0
+      for (const file of files) {
+        const { error: uploadError } = await ordersService.uploadOrderPhoto(
+          orderCode,
+          file,
+        )
+        if (uploadError) {
+          console.error('Error uploading photo:', uploadError)
+          uploadErrors++
+        }
+      }
+
+      if (uploadErrors > 0) {
+        toast({
+          title: 'Atenção',
+          description: `Algumas fotos não puderam ser enviadas. Você pode tentar novamente na área do cliente.`,
+          variant: 'destructive',
+        })
+      }
 
       // 3. Redirect
-      if (checkoutUrl) {
-        // Store for fallback/history
-        localStorage.setItem(
-          'lastOrder',
-          JSON.stringify({ code: orderCode, url: checkoutUrl }),
-        )
-        window.location.href = checkoutUrl
-      } else {
-        throw new Error('No checkout URL received')
-      }
+      setLoadingText('Redirecionando para pagamento...')
+
+      // Save orderCode to local storage for recovery if needed
+      localStorage.setItem(
+        'lastOrder',
+        JSON.stringify({ code: orderCode, url: checkoutUrl }),
+      )
+
+      window.location.href = checkoutUrl
     } catch (error: any) {
-      console.error(error)
+      console.error('Order submission error:', error)
       toast({
-        title: 'Erro ao enviar pedido',
+        title: 'Erro ao processar pedido',
         description:
-          error.message || 'Houve um problema. Tente novamente mais tarde.',
+          error.message || 'Ocorreu um erro inesperado. Tente novamente.',
         variant: 'destructive',
       })
-    } finally {
-      setIsSubmitting(false)
+      setLoading(false)
     }
   }
 
+  if (!plan) return null
+
   return (
-    <div className="pt-32 pb-16 min-h-screen bg-stone-50">
-      <div className="container mx-auto px-4 max-w-3xl">
+    <div className="min-h-screen bg-stone-50 py-8 px-4 font-body">
+      <div className="max-w-3xl mx-auto">
         <Button
           variant="ghost"
+          className="mb-6 pl-0 hover:bg-transparent hover:text-primary"
           onClick={() => navigate('/planos')}
-          className="mb-8 pl-0 hover:bg-transparent hover:text-primary transition-colors"
         >
-          <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para Planos
+          <ChevronLeft className="mr-2 h-4 w-4" />
+          Voltar para Planos
         </Button>
 
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-heading font-bold text-foreground">
-            Vamos começar seu projeto
-          </h1>
-          <p className="text-muted-foreground mt-2 text-lg">
-            Você escolheu o{' '}
-            <span className="font-bold text-primary">
-              Projeto {selectedPlan}
-            </span>
-            .
-            <br />
-            Precisamos de alguns detalhes para criar algo único para você.
-          </p>
-        </div>
-
-        <div className="bg-white p-6 md:p-10 rounded-2xl shadow-sm border border-border">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="nome"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nome Completo</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Seu nome" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="whatsapp"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>WhatsApp</FormLabel>
-                      <FormControl>
-                        <Input placeholder="(XX) XXXXX-XXXX" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>E-mail</FormLabel>
-                      <FormControl>
-                        <Input placeholder="seu@email.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="tipoImovel"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tipo do Imóvel</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Casa">Casa</SelectItem>
-                          <SelectItem value="Apartamento">
-                            Apartamento
-                          </SelectItem>
-                          <SelectItem value="Loja">Loja</SelectItem>
-                          <SelectItem value="Terreno">Terreno</SelectItem>
-                          <SelectItem value="Chácara">Chácara</SelectItem>
-                          <SelectItem value="Outro">Outro</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="medidas"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Medidas Aproximadas (Opcional)</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Ex: 10m x 5m, ou 'quintal pequeno em L'"
-                        {...field}
+        <div className="grid md:grid-cols-3 gap-8">
+          <div className="md:col-span-2 space-y-6">
+            <Card>
+              <CardContent className="p-6">
+                <h2 className="text-xl font-heading font-semibold mb-6">
+                  Dados do Pedido
+                </h2>
+                <Form {...form}>
+                  <form
+                    onSubmit={form.handleSubmit(onSubmit)}
+                    className="space-y-6"
+                  >
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                        Dados Pessoais
+                      </h3>
+                      <FormField
+                        control={form.control}
+                        name="client_name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nome Completo</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Seu nome" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="client_email"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>E-mail</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="seu@email.com"
+                                  type="email"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="client_whatsapp"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>WhatsApp</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="(00) 00000-0000"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
 
-              <FormField
-                control={form.control}
-                name="preferencias"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Preferências e Estilo (Opcional)</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Ex: Quero um jardim tropical com rede, pouca manutenção, gosto de cores vibrantes..."
-                        className="min-h-[100px]"
-                        {...field}
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                        Sobre o Espaço
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="property_type"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Tipo de Imóvel</FormLabel>
+                              <Select
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecione..." />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="Casa">Casa</SelectItem>
+                                  <SelectItem value="Apartamento">
+                                    Apartamento
+                                  </SelectItem>
+                                  <SelectItem value="Comercial">
+                                    Comercial
+                                  </SelectItem>
+                                  <SelectItem value="Outro">Outro</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="dimensions"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Dimensões Aprox.</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="Ex: 5x10m, 50m²"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <FormField
+                        control={form.control}
+                        name="preferences"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Preferências (Opcional)</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Gosto de plantas tropicais, pedras, etc."
+                                className="resize-none"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      <FormField
+                        control={form.control}
+                        name="notes"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Observações (Opcional)</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Alguma informação adicional importante?"
+                                className="resize-none"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
 
-              {/* Upload Section */}
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <FormLabel className="text-base">Fotos do Espaço</FormLabel>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-heading font-semibold">
+                    Fotos do Espaço
+                  </h2>
                   <span className="text-xs text-muted-foreground">
                     Mínimo 1 foto
                   </span>
                 </div>
 
-                <div className="border-2 border-dashed border-input rounded-xl p-8 text-center hover:bg-accent/30 transition-colors relative bg-stone-50">
-                  <Input
+                <div
+                  className="border-2 border-dashed border-muted-foreground/25 rounded-xl p-8 text-center transition-colors hover:bg-muted/30 cursor-pointer"
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                >
+                  <input
                     type="file"
+                    ref={fileInputRef}
+                    className="hidden"
                     multiple
                     accept="image/*"
-                    onChange={handlePhotoUpload}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    onChange={handleFileChange}
                   />
-                  <div className="flex flex-col items-center justify-center pointer-events-none">
-                    <div className="bg-white p-3 rounded-full shadow-sm mb-4">
-                      <Upload className="h-6 w-6 text-primary" />
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-2">
+                      <Upload className="h-6 w-6" />
                     </div>
-                    <p className="font-medium text-foreground">
-                      Clique ou arraste fotos aqui
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="font-medium">Clique ou arraste fotos aqui</p>
+                    <p className="text-sm text-muted-foreground">
                       Procure mostrar vários ângulos do local
                     </p>
                   </div>
                 </div>
 
-                {photos.length > 0 && (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 mt-4">
-                    {photos.map((photo, index) => (
+                {files.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
+                    {files.map((file, index) => (
                       <div
                         key={index}
-                        className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100 border shadow-sm"
+                        className="relative aspect-square rounded-lg overflow-hidden group border bg-muted"
                       >
                         <img
-                          src={URL.createObjectURL(photo)}
-                          alt="Preview"
+                          src={URL.createObjectURL(file)}
+                          alt={`Preview ${index}`}
                           className="w-full h-full object-cover"
                         />
                         <button
-                          type="button"
-                          onClick={() => removePhoto(index)}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                          onClick={() => removeFile(index)}
+                          className="absolute top-1 right-1 bg-black/50 hover:bg-destructive text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -341,32 +431,74 @@ export default function Pedido() {
                     ))}
                   </div>
                 )}
-              </div>
+              </CardContent>
+            </Card>
 
-              <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg text-sm text-amber-900 flex gap-3 items-start">
-                <div className="mt-0.5 min-w-[4px] h-4 rounded-full bg-amber-500" />
-                <p>
-                  Ao continuar, você será redirecionado para o ambiente seguro
-                  da Asaas para concluir o pagamento.
-                </p>
-              </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-800">
+                Ao continuar, você será redirecionado para o ambiente seguro da
+                Asaas para concluir o pagamento.
+              </p>
+            </div>
 
-              <Button
-                type="submit"
-                className="w-full text-lg h-14 rounded-full font-bold shadow-lg hover:shadow-xl transition-all"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />{' '}
-                    Processando...
-                  </>
-                ) : (
-                  'Pagar com Segurança'
-                )}
-              </Button>
-            </form>
-          </Form>
+            <Button
+              className="w-full h-12 text-lg"
+              size="lg"
+              disabled={loading}
+              onClick={form.handleSubmit(onSubmit)}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  {loadingText}
+                </>
+              ) : (
+                'Pagar com Segurança'
+              )}
+            </Button>
+          </div>
+
+          <div className="space-y-6">
+            <Card className="sticky top-24">
+              <CardContent className="p-6">
+                <h3 className="font-heading font-semibold mb-4">
+                  Resumo do Pedido
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center pb-4 border-b">
+                    <span className="text-muted-foreground">
+                      Plano Escolhido
+                    </span>
+                    <span className="font-medium text-primary">{plan}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-lg font-bold">
+                    <span>Total</span>
+                    <span>
+                      {price.toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      })}
+                    </span>
+                  </div>
+                  <div className="pt-4 space-y-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <span>Projeto Personalizado</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <span>Suporte via WhatsApp</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <span>Entrega Digital</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>

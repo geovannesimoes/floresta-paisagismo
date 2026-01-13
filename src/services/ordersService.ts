@@ -65,7 +65,6 @@ export interface CheckoutResponse {
 }
 
 export const ordersService = {
-  // Edge Function Call
   async createCheckout(data: CheckoutRequest): Promise<CheckoutResponse> {
     const { data: result, error } = await supabase.functions.invoke(
       'create-checkout',
@@ -75,37 +74,53 @@ export const ordersService = {
     )
 
     if (error) {
-      console.error('Checkout error:', error)
+      console.error('Checkout invoke error:', error)
+      // Attempt to parse the error message if it's a JSON string in the error object or similar
+      // The supabase invoke error usually has a generic message if 500/400
+      let errorMessage = 'Erro ao conectar com servidor'
+      try {
+        if (error instanceof Error) errorMessage = error.message
+        // If response is available in error context (depends on SDK version)
+      } catch (e) {
+        // ignore
+      }
       return {
         orderCode: '',
         checkoutUrl: '',
-        error: error.message || 'Erro ao criar checkout',
+        error: errorMessage,
       }
     }
 
-    if (result.error) {
+    if (result && result.error) {
+      // Error returned from the function logic (catch block)
       return { orderCode: '', checkoutUrl: '', error: result.error }
+    }
+
+    // Check if result is empty or missing expected fields
+    if (!result || !result.checkoutUrl) {
+      return {
+        orderCode: '',
+        checkoutUrl: '',
+        error: 'Resposta inválida do servidor de pagamento',
+      }
     }
 
     return result as CheckoutResponse
   },
 
   async getOrderByCode(code: string) {
-    // Call Secure RPC to get order by ID without auth (for success page)
     const { data, error } = await supabase.rpc('get_order_by_code', {
       p_code: code,
     })
 
     if (error) return { data: null, error }
     if (!data || data.length === 0)
-      return { data: null, error: 'Order not found' }
+      return { data: null, error: 'Pedido não encontrado' }
 
-    // Cast to Order (RPC returns array of rows)
     return { data: data[0] as Order, error: null }
   },
 
   async getClientOrder(email: string, id: string) {
-    // Call RPC for security
     const { data, error } = await supabase.rpc('get_client_order', {
       p_email: email,
       p_id: id,
@@ -113,13 +128,12 @@ export const ordersService = {
 
     if (error) return { data: null, error }
     if (!data || data.length === 0)
-      return { data: null, error: 'Order not found' }
+      return { data: null, error: 'Pedido não encontrado' }
 
     return this._fetchOrderRelations(data[0])
   },
 
   async getOrdersByEmail(email: string) {
-    // Fetches all orders for a specific email (Authenticated QA flow)
     const { data, error } = await supabase
       .from('orders')
       .select('*')

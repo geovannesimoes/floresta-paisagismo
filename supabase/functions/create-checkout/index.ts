@@ -7,7 +7,6 @@ const ASAAS_API_URL =
 const ASAAS_API_KEY = Deno.env.get('ASAAS_API_KEY')
 const QA_BYPASS_EMAILS = Deno.env.get('QA_BYPASS_EMAILS') || ''
 
-// Helper to generate 8-char alphanumeric ID
 function generateOrderCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
   let code = ''
@@ -28,14 +27,25 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    const { client_name, client_email, client_whatsapp, plan, price } =
-      await req.json()
+    const requestData = await req.json()
+    const {
+      client_name,
+      client_email,
+      client_whatsapp,
+      plan,
+      price,
+      property_type,
+      dimensions,
+      preferences,
+      notes,
+    } = requestData
 
     if (!client_name || !client_email || !plan || !price) {
-      throw new Error('Missing required fields')
+      throw new Error(
+        'Campos obrigatórios faltando (Nome, Email, Plano, Preço)',
+      )
     }
 
-    // 1. Generate Unique ID
     let orderCode = generateOrderCode()
     let isUnique = false
     let retries = 0
@@ -51,14 +61,17 @@ Deno.serve(async (req: Request) => {
         retries++
       }
     }
-    if (!isUnique) throw new Error('Failed to generate unique order code')
+    if (!isUnique) throw new Error('Falha ao gerar código único do pedido')
 
-    // 2. QA Bypass Check
     const bypassEmails = QA_BYPASS_EMAILS.split(',').map((e: string) =>
       e.trim().toLowerCase(),
     )
-    if (bypassEmails.includes(client_email.toLowerCase())) {
-      // QA Bypass Flow
+    const emailLower = client_email.toLowerCase().trim()
+    const isQABypass =
+      emailLower === 'geovanne_simoes@hotmail.com' ||
+      bypassEmails.includes(emailLower)
+
+    if (isQABypass) {
       const { error: dbError } = await supabase.from('orders').insert({
         id: orderCode,
         client_name,
@@ -66,30 +79,34 @@ Deno.serve(async (req: Request) => {
         client_whatsapp,
         plan,
         price,
+        property_type,
+        dimensions,
+        preferences,
+        notes,
         status: 'Recebido',
         payment_status: 'PAID',
         is_test: true,
         payment_mode: 'qa_bypass',
       })
 
-      if (dbError) throw dbError
+      if (dbError) {
+        console.error('Database Error (QA):', dbError)
+        throw new Error('Erro ao salvar pedido no banco de dados')
+      }
 
       return new Response(
         JSON.stringify({
           orderCode,
-          checkoutUrl: `/pagamento/sucesso?code=${orderCode}`, // Relative URL handled by frontend
+          checkoutUrl: `/pagamento/sucesso?code=${orderCode}`,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
     }
 
-    // 3. Asaas Integration
     if (!ASAAS_API_KEY) {
-      throw new Error('Asaas API configuration missing')
+      throw new Error('Configuração da API Asaas ausente')
     }
 
-    // 3a. Create/Find Customer
-    // First try to find existing customer by email
     let customerId = ''
     const customerSearchRes = await fetch(
       `${ASAAS_API_URL}/customers?email=${encodeURIComponent(client_email)}`,
@@ -97,12 +114,18 @@ Deno.serve(async (req: Request) => {
         headers: { access_token: ASAAS_API_KEY },
       },
     )
+
+    if (!customerSearchRes.ok) {
+      const errText = await customerSearchRes.text()
+      console.error('Asaas Customer Search Error:', errText)
+      throw new Error('Erro ao buscar cliente no Asaas')
+    }
+
     const customerSearchData = await customerSearchRes.json()
 
     if (customerSearchData.data && customerSearchData.data.length > 0) {
       customerId = customerSearchData.data[0].id
     } else {
-      // Create new customer
       const createCustomerRes = await fetch(`${ASAAS_API_URL}/customers`, {
         method: 'POST',
         headers: {
@@ -117,16 +140,16 @@ Deno.serve(async (req: Request) => {
         }),
       })
       const createCustomerData = await createCustomerRes.json()
-      if (createCustomerData.errors)
+      if (createCustomerData.errors) {
         throw new Error(
-          `Asaas Customer Error: ${JSON.stringify(createCustomerData.errors)}`,
+          `Erro no Asaas (Cliente): ${createCustomerData.errors[0].description}`,
         )
+      }
       customerId = createCustomerData.id
     }
 
-    // 3b. Create Payment
     const dueDate = new Date()
-    dueDate.setDate(dueDate.getDate() + 3) // Due in 3 days
+    dueDate.setDate(dueDate.getDate() + 3)
 
     const paymentRes = await fetch(`${ASAAS_API_URL}/payments`, {
       method: 'POST',
@@ -136,7 +159,7 @@ Deno.serve(async (req: Request) => {
       },
       body: JSON.stringify({
         customer: customerId,
-        billingType: 'UNDEFINED', // Let user choose (PIX, BOLETO, CREDIT_CARD)
+        billingType: 'UNDEFINED',
         value: price,
         dueDate: dueDate.toISOString().split('T')[0],
         description: `Projeto Paisagístico - Plano ${plan}`,
@@ -146,12 +169,12 @@ Deno.serve(async (req: Request) => {
     })
 
     const paymentData = await paymentRes.json()
-    if (paymentData.errors)
+    if (paymentData.errors) {
       throw new Error(
-        `Asaas Payment Error: ${JSON.stringify(paymentData.errors)}`,
+        `Erro no Asaas (Pagamento): ${paymentData.errors[0].description}`,
       )
+    }
 
-    // 4. Create Order in DB
     const { error: dbError } = await supabase.from('orders').insert({
       id: orderCode,
       client_name,
@@ -159,15 +182,23 @@ Deno.serve(async (req: Request) => {
       client_whatsapp,
       plan,
       price,
+      property_type,
+      dimensions,
+      preferences,
+      notes,
       status: 'Aguardando Pagamento',
       payment_status: 'PENDING',
       asaas_customer_id: customerId,
       asaas_payment_id: paymentData.id,
       asaas_invoice_url: paymentData.invoiceUrl,
       is_test: false,
+      payment_mode: 'asaas',
     })
 
-    if (dbError) throw dbError
+    if (dbError) {
+      console.error('Database Insert Error:', dbError)
+      throw new Error('Erro ao salvar pedido no banco de dados')
+    }
 
     return new Response(
       JSON.stringify({
@@ -177,7 +208,7 @@ Deno.serve(async (req: Request) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   } catch (error: any) {
-    console.error('Checkout Error:', error)
+    console.error('Checkout Function Error:', error)
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
