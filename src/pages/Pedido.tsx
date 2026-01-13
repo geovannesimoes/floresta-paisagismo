@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -33,7 +32,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { ordersService } from '@/services/ordersService'
-import { cn } from '@/lib/utils'
+import { PLAN_DETAILS, PlanName } from '@/lib/plan-constants'
 
 const formSchema = z.object({
   client_name: z
@@ -53,7 +52,7 @@ const formSchema = z.object({
 
 export default function Pedido() {
   const navigate = useNavigate()
-  const location = useLocation()
+  const [searchParams] = useSearchParams()
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -61,13 +60,22 @@ export default function Pedido() {
   const [loading, setLoading] = useState(false)
   const [loadingText, setLoadingText] = useState('')
 
-  const state = location.state as { plan: string; price: number } | undefined
-  const plan = state?.plan
-  const price = state?.price
+  // Retrieve plan from URL query params (preferred)
+  const planParam = searchParams.get('plan')
 
-  // If no plan is selected, redirect back to plans
+  // Resolve Plan Details
+  const planDetails = planParam
+    ? PLAN_DETAILS[planParam as PlanName]
+    : undefined
+  const plan = planParam
+  // Parse price from string (e.g. "399,00" -> 399.00)
+  const price = planDetails
+    ? parseFloat(planDetails.price.replace(/\./g, '').replace(',', '.'))
+    : 0
+
+  // If no valid plan is selected, redirect back to plans
   useEffect(() => {
-    if (!plan || !price) {
+    if (!plan || !planDetails) {
       toast({
         title: 'Plano não selecionado',
         description: 'Por favor, escolha um plano para continuar.',
@@ -75,7 +83,7 @@ export default function Pedido() {
       })
       navigate('/planos')
     }
-  }, [plan, price, navigate, toast])
+  }, [plan, planDetails, navigate, toast])
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),

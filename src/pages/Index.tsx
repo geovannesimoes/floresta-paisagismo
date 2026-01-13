@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ProjectCard } from '@/components/ProjectCard'
+import { PricingCards } from '@/components/PricingCards'
 import { projectsService, Project } from '@/services/projectsService'
 import { useSiteSettings } from '@/hooks/use-site-settings'
 import { useSeo } from '@/hooks/use-seo'
@@ -230,7 +231,22 @@ export default function Index() {
         </div>
       </section>
 
-      {/* 4. Final CTA */}
+      {/* 4. Pricing Section (Added) */}
+      <section className="py-24 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-5xl font-heading font-bold text-foreground mb-6">
+              Nossos Planos
+            </h2>
+            <p className="text-muted-foreground text-xl max-w-2xl mx-auto font-light">
+              Escolha o pacote ideal para transformar o seu espaço.
+            </p>
+          </div>
+          <PricingCards />
+        </div>
+      </section>
+
+      {/* 5. Final CTA */}
       <section
         className="py-32 bg-primary text-white relative overflow-hidden"
         style={
