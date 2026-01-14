@@ -13,7 +13,7 @@ Deno.serve(async (req: Request) => {
     const asaasToken = Deno.env.get('ASAAS_ACCESS_TOKEN')
     const asaasEnv = Deno.env.get('ASAAS_ENV')
 
-    const missingVars = {
+    const missingVars: Record<string, boolean> = {
       SUPABASE_URL: !supabaseUrl,
       SUPABASE_SERVICE_ROLE_KEY: !supabaseServiceKey,
       ASAAS_ACCESS_TOKEN: !asaasToken,
@@ -162,7 +162,10 @@ Deno.serve(async (req: Request) => {
             .map((e: any) => e.description)
             .join(', ')
           return new Response(
-            JSON.stringify({ error: `Asaas Customer Error: ${messages}` }),
+            JSON.stringify({
+              error: 'Erro ao criar cliente no Asaas',
+              details: messages,
+            }),
             {
               status: 502,
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -188,16 +191,12 @@ Deno.serve(async (req: Request) => {
 
     // Add Redirect URLs if siteUrl is provided
     if (siteUrl) {
-      // Note: Asaas might not support these fields on the standard POST /payments depending on account config,
-      // but we send them as per user requirement.
       paymentPayload.callback = {
         successUrl: `${siteUrl}/pagamento/sucesso?orderCode=${orderCode}`,
         autoRedirect: true,
       }
-      // Some integrations use these flat fields:
       paymentPayload.successUrl = `${siteUrl}/pagamento/sucesso?orderCode=${orderCode}`
       paymentPayload.cancelUrl = `${siteUrl}/pagamento/cancelado?orderCode=${orderCode}`
-      // expiredUrl is not standard in Asaas API v3 payload usually, but we include it.
       paymentPayload.expiredUrl = `${siteUrl}/pagamento/expirado?orderCode=${orderCode}`
     }
 
@@ -214,7 +213,10 @@ Deno.serve(async (req: Request) => {
         .map((e: any) => e.description)
         .join(', ')
       return new Response(
-        JSON.stringify({ error: `Asaas Payment Error: ${messages}` }),
+        JSON.stringify({
+          error: 'Erro ao criar pagamento no Asaas',
+          details: messages,
+        }),
         {
           status: 502,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -230,7 +232,7 @@ Deno.serve(async (req: Request) => {
       .update({
         asaas_customer_id: customerId,
         asaas_checkout_id: checkoutId,
-        asaas_payment_id: checkoutId, // Also save as payment_id since it is a payment object
+        asaas_payment_id: checkoutId,
         asaas_checkout_url: checkoutUrl,
         asaas_status: 'PENDING',
       })

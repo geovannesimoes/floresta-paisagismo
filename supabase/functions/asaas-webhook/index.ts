@@ -40,14 +40,14 @@ Deno.serve(async (req: Request) => {
 
     if (!payment || !payment.id) {
       return new Response(JSON.stringify({ error: 'Invalid payload' }), {
-        status: 400,
+        status: 200, // Return 200 to avoid retries on bad payload
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
     // Determine New Status based on Event Type
     let newStatus = ''
-    let updateData: any = {
+    const updateData: any = {
       asaas_status: eventType,
       asaas_payment_id: payment.id,
       asaas_webhook_last_event_at: new Date().toISOString(),
@@ -171,9 +171,7 @@ Deno.serve(async (req: Request) => {
     )
   } catch (error: any) {
     console.error('Webhook Internal Error:', error)
-    // Return 200 to prevent retries on internal logic errors if possible,
-    // but 500 if we want Asaas to try again later (e.g. database down).
-    // Given the request to return 200 even if order not found, we generally prefer 200 unless critical failure.
+    // Return 200 to prevent retries on internal logic errors
     return new Response(JSON.stringify({ error: error.message }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

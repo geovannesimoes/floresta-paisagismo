@@ -29,28 +29,34 @@ export const asaasCheckoutService = {
 
       if (error) {
         console.error('[AsaasCheckout] Invocation Error:', error)
-        // Edge Function Invocation Failed (Network, 500, etc)
-        // Try to parse the response body if available in error context, usually Supabase client returns a structured error
-        // But if it's a FunctionInvokeError, we might check details.
 
         let errorMessage = 'Falha ao conectar com servidor de pagamento.'
-
-        // If the edge function returned a specific error structure in the body despite the http error code
-        // The supabase client might put it in `error.context` or similar, but simplified:
         if (error instanceof Error) {
           errorMessage = error.message
         }
-
-        return {
-          error: errorMessage,
-        }
+        return { error: errorMessage }
       }
 
       console.log('[AsaasCheckout] Response Data:', data)
 
       if (data.error) {
-        console.error('[AsaasCheckout] API Error:', data.error)
-        return { error: data.error }
+        console.error('[AsaasCheckout] API Error:', data.error, data.details)
+        // Combine error and details for better feedback
+        const fullMessage = data.details
+          ? `${data.error}: ${data.details}`
+          : data.error
+        return { error: fullMessage }
+      }
+
+      if (data.missing) {
+        // Handle explicit missing environment variables error
+        const missingVars = Object.keys(data.missing)
+          .filter((k) => data.missing[k])
+          .join(', ')
+        console.error('[AsaasCheckout] Missing Config:', missingVars)
+        return {
+          error: `Erro de configuração do servidor (Variáveis ausentes: ${missingVars})`,
+        }
       }
 
       if (!data.checkoutUrl) {
