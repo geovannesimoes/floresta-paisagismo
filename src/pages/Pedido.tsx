@@ -27,11 +27,19 @@ import { useToast } from '@/hooks/use-toast'
 import { ordersService } from '@/services/ordersService'
 import { useSeo } from '@/hooks/use-seo'
 import { PLAN_DETAILS, PlanName } from '@/lib/plan-constants'
+import { formatCpfCnpj, formatPhone } from '@/lib/utils'
 
 const formSchema = z.object({
   nome: z.string().min(3, 'Nome muito curto'),
   email: z.string().email('E-mail inválido'),
-  whatsapp: z.string().min(10, 'Número inválido'),
+  cpfCnpj: z.string().refine((val) => {
+    const digits = val.replace(/\D/g, '')
+    return digits.length === 11 || digits.length === 14
+  }, 'CPF ou CNPJ inválido'),
+  whatsapp: z.string().refine((val) => {
+    const digits = val.replace(/\D/g, '')
+    return digits.length === 10 || digits.length === 11
+  }, 'Número inválido'),
   tipoImovel: z.string({ required_error: 'Selecione o tipo de imóvel' }),
   medidas: z.string().optional(),
   preferencias: z.string().optional(),
@@ -63,6 +71,7 @@ export default function Pedido() {
     defaultValues: {
       nome: '',
       email: '',
+      cpfCnpj: '',
       whatsapp: '',
       medidas: '',
       preferencias: '',
@@ -98,7 +107,8 @@ export default function Pedido() {
       const { data: order, error } = await ordersService.createOrder({
         client_name: values.nome,
         client_email: values.email,
-        client_whatsapp: values.whatsapp,
+        client_cpf_cnpj: values.cpfCnpj.replace(/\D/g, ''),
+        client_whatsapp: values.whatsapp.replace(/\D/g, ''),
         property_type: values.tipoImovel,
         dimensions: values.medidas,
         preferences: values.preferencias,
@@ -187,22 +197,6 @@ export default function Pedido() {
                     />
                     <FormField
                       control={form.control}
-                      name="whatsapp"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>WhatsApp</FormLabel>
-                          <FormControl>
-                            <Input placeholder="(XX) XXXXX-XXXX" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                      control={form.control}
                       name="email"
                       render={({ field }) => (
                         <FormItem>
@@ -214,6 +208,50 @@ export default function Pedido() {
                         </FormItem>
                       )}
                     />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="cpfCnpj"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>CPF/CNPJ</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="CPF ou CNPJ"
+                              {...field}
+                              onChange={(e) => {
+                                field.onChange(formatCpfCnpj(e.target.value))
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="whatsapp"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>WhatsApp</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="(XX) XXXXX-XXXX"
+                              {...field}
+                              onChange={(e) => {
+                                field.onChange(formatPhone(e.target.value))
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <FormField
                       control={form.control}
                       name="tipoImovel"

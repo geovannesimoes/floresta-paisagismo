@@ -6,6 +6,7 @@ export interface Order {
   code: string
   client_name: string
   client_email: string
+  client_cpf_cnpj?: string
   client_whatsapp: string
   property_type: string
   dimensions?: string
@@ -55,6 +56,7 @@ export const ordersService = {
     const { data, error } = await supabase.rpc('create_order_and_return', {
       p_client_name: order.client_name,
       p_client_email: order.client_email,
+      p_client_cpf_cnpj: order.client_cpf_cnpj || null,
       p_client_whatsapp: order.client_whatsapp || null,
       p_property_type: order.property_type || null,
       p_dimensions: order.dimensions || null,

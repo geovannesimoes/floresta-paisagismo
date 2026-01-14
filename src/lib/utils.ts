@@ -1,4 +1,4 @@
-/* General utility functions (exposes cn, hexToHsl) */
+/* General utility functions (exposes cn, hexToHsl, formatCpfCnpj, formatPhone) */
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
@@ -63,4 +63,44 @@ export function hexToHsl(hex: string): string | null {
   l = Math.round(l * 100)
 
   return `${h} ${s}% ${l}%`
+}
+
+/**
+ * Formats a string as CPF or CNPJ
+ * @param value - The input string
+ * @returns Formatted CPF or CNPJ
+ */
+export function formatCpfCnpj(value: string) {
+  const digits = value.replace(/\D/g, '')
+
+  if (digits.length <= 11) {
+    // CPF
+    return digits
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})/, '$1-$2')
+      .replace(/(-\d{2})\d+?$/, '$1')
+  } else {
+    // CNPJ
+    return digits
+      .slice(0, 14)
+      .replace(/^(\d{2})(\d)/, '$1.$2')
+      .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+      .replace(/\.(\d{3})(\d)/, '.$1/$2')
+      .replace(/(\d{4})(\d)/, '$1-$2')
+  }
+}
+
+/**
+ * Formats a string as a Brazilian phone number
+ * @param value - The input string
+ * @returns Formatted phone number
+ */
+export function formatPhone(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 11)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`
+  if (digits.length <= 10)
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
 }

@@ -88,6 +88,17 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    // New validation for CPF/CNPJ
+    if (!order.client_cpf_cnpj) {
+      return new Response(
+        JSON.stringify({ error: 'CPF/CNPJ é obrigatório para pagamento' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      )
+    }
+
     if (order.asaas_checkout_url) {
       return new Response(
         JSON.stringify({ checkoutUrl: order.asaas_checkout_url }),
@@ -102,6 +113,7 @@ Deno.serve(async (req: Request) => {
 
     let customerId = order.asaas_customer_id
 
+    // Check customer by email if not linked yet
     if (!customerId) {
       const customerSearchRes = await fetch(
         `${ASAAS_API_URL}/customers?email=${encodeURIComponent(order.client_email)}`,
@@ -117,9 +129,34 @@ Deno.serve(async (req: Request) => {
       }
 
       const customerSearchResult = await customerSearchRes.json()
-      customerId = customerSearchResult.data?.[0]?.id
+      const existingCustomer = customerSearchResult.data?.[0]
 
-      if (!customerId) {
+      if (existingCustomer) {
+        customerId = existingCustomer.id
+        // Check if existing customer has missing CPF/CNPJ and update if necessary
+        // Or if we just want to ensure our current order data is reflected on Asaas
+        // We will update the customer with the current order info (name, cpfCnpj, phone)
+        const updateRes = await fetch(
+          `${ASAAS_API_URL}/customers/${customerId}`,
+          {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({
+              name: order.client_name,
+              cpfCnpj: order.client_cpf_cnpj,
+              mobilePhone: order.client_whatsapp || undefined,
+            }),
+          },
+        )
+
+        if (!updateRes.ok) {
+          console.warn(
+            'Failed to update existing customer data in Asaas',
+            await updateRes.text(),
+          )
+        }
+      } else {
+        // Create new customer
         const newCustomerRes = await fetch(`${ASAAS_API_URL}/customers`, {
           method: 'POST',
           headers,
@@ -127,6 +164,7 @@ Deno.serve(async (req: Request) => {
             name: order.client_name,
             email: order.client_email,
             mobilePhone: order.client_whatsapp || undefined,
+            cpfCnpj: order.client_cpf_cnpj,
             externalReference: order.id,
           }),
         })
