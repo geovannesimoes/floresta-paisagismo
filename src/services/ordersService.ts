@@ -122,6 +122,36 @@ export const ordersService = {
     return { data: data as Order[], error }
   },
 
+  async getClientOrder(email: string, code: string) {
+    // Use the details RPC which returns relations as JSON
+    const { data, error } = await supabase.rpc('get_client_order_details', {
+      p_email: email,
+      p_code: code,
+    })
+
+    return { data: data as unknown as Order, error }
+  },
+
+  async getOrdersByEmail(email: string) {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('client_email', email)
+      .order('created_at', { ascending: false })
+    return { data: data as Order[], error }
+  },
+
+  async getOrderWithRelations(id: string) {
+    const { data, error } = await supabase
+      .from('orders')
+      .select(
+        '*, photos:order_photos(*), deliverables:order_deliverables(*), revisions:revision_requests(*)',
+      )
+      .eq('id', id)
+      .single()
+    return { data: data as Order, error }
+  },
+
   async updateOrderStatus(id: string, status: string, currentOrder: Order) {
     const updates: any = { status, updated_at: new Date().toISOString() }
 
@@ -152,6 +182,19 @@ export const ordersService = {
     return { data: data as Order, error }
   },
 
+  async requestRevision(orderId: string, description: string) {
+    const { data, error } = await supabase
+      .from('revision_requests')
+      .insert({
+        order_id: orderId,
+        description,
+        status: 'Pendente',
+      })
+      .select()
+      .single()
+    return { data, error }
+  },
+
   // --- Checklist Methods ---
 
   async getChecklist(orderId: string) {
@@ -166,7 +209,6 @@ export const ordersService = {
 
   async initChecklist(orderId: string, planName: string) {
     // Determine items based on plan
-    // Using simple includes check to match plan names like "Projeto Lírio" or just "Lírio"
     let items: string[] = []
 
     if (planName.includes('Jasmim')) {
@@ -174,7 +216,6 @@ export const ordersService = {
     } else if (planName.includes('Ipê')) {
       items = PLAN_DETAILS['Ipê'].checklist as unknown as string[]
     } else {
-      // Default to Lírio or Fallback
       items = PLAN_DETAILS['Lírio'].checklist as unknown as string[]
     }
 

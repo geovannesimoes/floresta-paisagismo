@@ -14,7 +14,9 @@ import {
   LayoutTemplate,
   List,
   Eye,
+  X,
 } from 'lucide-react'
+import { differenceInDays, addDays } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -106,6 +108,7 @@ export default function Admin() {
   // Loading states
   const [loading, setLoading] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [checklistRefreshKey, setChecklistRefreshKey] = useState(0)
 
   // Media Upload State
   const [newMediaUrl, setNewMediaUrl] = useState('')
@@ -307,6 +310,25 @@ export default function Admin() {
         setDeliverableFiles([])
         setDeliverableCategory('')
         setDeliverableCustomTitle('')
+
+        // Automated Checklist marking logic
+        const { data: checklist } = await ordersService.getChecklist(
+          selectedOrder.id,
+        )
+        if (checklist) {
+          // Direct mapping based on category name
+          // The category selected matches the checklist item text almost exactly in most cases
+          const targetItem = checklist.find((i) => i.text === titleToUse)
+          if (targetItem && !targetItem.is_done) {
+            await ordersService.toggleChecklistItem(targetItem.id, true)
+            // Trigger refresh in child component
+            setChecklistRefreshKey((prev) => prev + 1)
+            toast({
+              title: 'Checklist atualizado',
+              description: `Item "${targetItem.text}" marcado como concluído.`,
+            })
+          }
+        }
       }
     } catch (e) {
       toast({ title: 'Erro ao enviar', variant: 'destructive' })
@@ -349,6 +371,51 @@ export default function Admin() {
       price: order.price ? order.price.toFixed(2) : '?',
       checklist: DELIVERABLE_CATEGORIES,
     }
+  }
+
+  const renderDeadlineCell = (order: Order) => {
+    // If order status is not "Recebido" or similar active state, show waiting
+    if (
+      !order.status.toLowerCase().includes('recebido') &&
+      !order.status.toLowerCase().includes('produção') &&
+      !order.status.toLowerCase().includes('enviado')
+    ) {
+      return <span className="text-muted-foreground">—</span>
+    }
+
+    // If completed
+    if (order.status.toLowerCase().includes('enviado') || order.delivered_at) {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          Concluído
+        </span>
+      )
+    }
+
+    // If active (Paid/In Production)
+    if (order.paid_at) {
+      const startDate = new Date(order.paid_at)
+      const deadlineDays = order.delivery_deadline_days || 7
+      const deadlineDate = addDays(startDate, deadlineDays)
+      const today = new Date()
+      const daysRemaining = differenceInDays(deadlineDate, today)
+
+      if (daysRemaining < 0) {
+        return (
+          <span className="text-red-600 font-bold">
+            Atrasado {Math.abs(daysRemaining)} dias
+          </span>
+        )
+      }
+
+      return (
+        <span className="text-orange-600 font-medium">
+          {daysRemaining} dias restantes
+        </span>
+      )
+    }
+
+    return <span className="text-muted-foreground">Aguardando</span>
   }
 
   if (authLoading)
@@ -418,6 +485,7 @@ export default function Admin() {
                       <TableHead>Código</TableHead>
                       <TableHead>Cliente</TableHead>
                       <TableHead>Plano</TableHead>
+                      <TableHead>Prazo</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Ação</TableHead>
                     </TableRow>
@@ -442,6 +510,7 @@ export default function Admin() {
                               Projeto {order.plan_snapshot_name || order.plan}
                             </span>
                           </TableCell>
+                          <TableCell>{renderDeadlineCell(order)}</TableCell>
                           <TableCell>
                             <span
                               className={`px-2 py-1 rounded-full text-xs text-white ${
@@ -989,7 +1058,10 @@ export default function Admin() {
 
                 <div className="space-y-6">
                   {/* Replaced old checklist with persistent checklist */}
-                  <OrderChecklist order={selectedOrder} />
+                  <OrderChecklist
+                    order={selectedOrder}
+                    refreshKey={checklistRefreshKey}
+                  />
 
                   <div className="border rounded-lg p-4">
                     <h4 className="font-bold mb-4">

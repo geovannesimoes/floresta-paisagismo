@@ -22,7 +22,7 @@ import { DELIVERABLE_SECTIONS } from '@/lib/plan-constants'
 
 export default function AreaCliente() {
   const { toast } = useToast()
-  const { user, signIn, signOut } = useAuth()
+  const { user, signOut } = useAuth()
 
   // Standard Login State
   const [orderCode, setOrderCode] = useState('')
@@ -65,16 +65,11 @@ export default function AreaCliente() {
       const normalizedCode = orderCode.trim().replace('#', '').toUpperCase()
       const normalizedEmail = email.trim().toLowerCase()
 
-      if (
-        normalizedEmail === 'geovanne_simoes@hotmail.com' &&
-        normalizedCode === 'TESTE123'
-      ) {
-        const { error } = await signIn(normalizedEmail, 'teste')
-        if (error) throw error
-        toast({ title: 'Login realizado com sucesso' })
-        return
+      if (normalizedCode.length !== 8) {
+        throw new Error('Código deve ter 8 caracteres.')
       }
 
+      // Secure Fetch using standardized Code
       const { data, error } = await ordersService.getClientOrder(
         normalizedEmail,
         normalizedCode,
@@ -85,10 +80,14 @@ export default function AreaCliente() {
       }
 
       setCurrentOrder(data)
-    } catch (error) {
+      toast({ title: 'Acesso concedido!' })
+    } catch (error: any) {
       toast({
         title: 'Acesso negado',
-        description: 'Verifique o Código do pedido e o e-mail.',
+        description:
+          error.message === 'Pedido não encontrado'
+            ? 'E-mail ou código do pedido inválidos.'
+            : error.message,
         variant: 'destructive',
       })
     } finally {
@@ -119,6 +118,7 @@ export default function AreaCliente() {
     } else {
       toast({ title: 'Solicitação enviada!' })
       setRevisionText('')
+      // Refresh current order to show new revision
       if (user && user.email) {
         const details = await ordersService.getOrderWithRelations(
           currentOrder.id,
@@ -165,8 +165,6 @@ export default function AreaCliente() {
     }
 
     // Check revision count limit
-    // Assuming Jasmim allows 2, others 1. Ideally this should be data-driven too.
-    // For MVP, if features mentions "2 rodadas", allow 2.
     const maxRevisions =
       currentOrder.plan_snapshot_features?.some((f) =>
         f.includes('2 rodadas'),
@@ -203,6 +201,7 @@ export default function AreaCliente() {
                     value={orderCode}
                     onChange={(e) => setOrderCode(e.target.value)}
                     className="h-11 font-mono uppercase"
+                    maxLength={8}
                   />
                 </div>
                 <div className="space-y-2">

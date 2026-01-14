@@ -15,9 +15,10 @@ import { cn } from '@/lib/utils'
 
 interface OrderChecklistProps {
   order: Order
+  refreshKey?: number
 }
 
-export function OrderChecklist({ order }: OrderChecklistProps) {
+export function OrderChecklist({ order, refreshKey = 0 }: OrderChecklistProps) {
   const [items, setItems] = useState<OrderChecklistItem[]>([])
   const [loading, setLoading] = useState(false)
   const [toggling, setToggling] = useState<string | null>(null)
@@ -48,7 +49,7 @@ export function OrderChecklist({ order }: OrderChecklistProps) {
     }
 
     loadChecklist()
-  }, [order.id, order.plan_snapshot_name, order.plan])
+  }, [order.id, order.plan_snapshot_name, order.plan, refreshKey])
 
   const handleToggle = async (item: OrderChecklistItem) => {
     setToggling(item.id)

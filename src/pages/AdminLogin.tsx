@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Lock, Loader2, AlertCircle } from 'lucide-react'
+import { Lock, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
+import { useSiteSettings } from '@/hooks/use-site-settings'
 import { LOGO_URL } from '@/lib/constants'
 
 export default function AdminLogin() {
@@ -23,6 +24,7 @@ export default function AdminLogin() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { signIn, user } = useAuth()
+  const { settings } = useSiteSettings()
 
   useEffect(() => {
     if (user) {
@@ -63,12 +65,15 @@ export default function AdminLogin() {
     }
   }
 
+  // Use dynamic logo from settings if available, else fallback
+  const logoUrl = settings?.logo_url || LOGO_URL
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
         <div className="flex justify-center mb-8">
           <img
-            src={LOGO_URL}
+            src={logoUrl}
             alt="Viveiro Floresta Logo"
             className="h-20 w-auto"
           />
