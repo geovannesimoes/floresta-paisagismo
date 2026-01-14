@@ -3,13 +3,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
 Deno.serve(async (req: Request) => {
-  // 1. Handle CORS Preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // 2. Validate Environment Variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     const asaasToken = Deno.env.get('ASAAS_ACCESS_TOKEN')
@@ -44,7 +42,6 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
 
-    // 3. Parse and Validate Request Body
     let body
     try {
       body = await req.json()
@@ -55,7 +52,7 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const { orderId, orderCode, planName, price, siteUrl } = body
+    const { orderId, orderCode, planName, price } = body
 
     const missingFields = []
     if (!orderId) missingFields.push('orderId')
@@ -74,7 +71,6 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // 4. Fetch Order
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('*')
@@ -92,7 +88,6 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // Idempotency check
     if (order.asaas_checkout_url) {
       return new Response(
         JSON.stringify({ checkoutUrl: order.asaas_checkout_url }),
@@ -105,15 +100,11 @@ Deno.serve(async (req: Request) => {
       access_token: asaasToken!,
     }
 
-    // 5. Find or Create Customer in Asaas
     let customerId = order.asaas_customer_id
 
     if (!customerId) {
-      // Search by email first
       const customerSearchRes = await fetch(
-        `${ASAAS_API_URL}/customers?email=${encodeURIComponent(
-          order.client_email,
-        )}`,
+        `${ASAAS_API_URL}/customers?email=${encodeURIComponent(order.client_email)}`,
         { headers },
       )
 
@@ -128,7 +119,6 @@ Deno.serve(async (req: Request) => {
       const customerSearchResult = await customerSearchRes.json()
       customerId = customerSearchResult.data?.[0]?.id
 
-      // Create if not exists
       if (!customerId) {
         const newCustomerRes = await fetch(`${ASAAS_API_URL}/customers`, {
           method: 'POST',
@@ -150,7 +140,7 @@ Deno.serve(async (req: Request) => {
           return new Response(
             JSON.stringify({ error: `Asaas Customer Error: ${messages}` }),
             {
-              status: 502, // Bad Gateway (Upstream error)
+              status: 502,
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             },
           )
@@ -159,7 +149,6 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // 6. Create Payment
     const paymentPayload = {
       customer: customerId,
       billingType: 'UNDEFINED',
@@ -168,7 +157,7 @@ Deno.serve(async (req: Request) => {
         .toISOString()
         .split('T')[0],
       description: `Projeto Paisagístico - Plano ${planName}`,
-      externalReference: orderCode, // Use code for easier identification
+      externalReference: orderCode,
       postalService: false,
     }
 
@@ -197,7 +186,6 @@ Deno.serve(async (req: Request) => {
     const checkoutUrl = paymentData.invoiceUrl
     const checkoutId = paymentData.id
 
-    // 7. Update Order in Supabase
     const { error: updateError } = await supabase
       .from('orders')
       .update({
@@ -210,7 +198,6 @@ Deno.serve(async (req: Request) => {
 
     if (updateError) {
       console.error('Supabase Update Error:', updateError)
-      // We don't fail the request here because payment was created, just log it
     }
 
     return new Response(JSON.stringify({ checkoutUrl }), {
