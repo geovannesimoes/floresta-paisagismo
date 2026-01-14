@@ -17,25 +17,51 @@ export const asaasCheckoutService = {
   async createCheckout(
     params: CreateCheckoutParams,
   ): Promise<CreateCheckoutResponse> {
-    const { data, error } = await supabase.functions.invoke(
-      'create-asaas-checkout',
-      {
-        body: params,
-      },
-    )
+    console.log('[AsaasCheckout] Initiating checkout with params:', params)
 
-    if (error) {
-      console.error('Asaas Checkout Error:', error)
-      return {
-        error: error.message || 'Falha ao conectar com gateway de pagamento',
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        'create-asaas-checkout',
+        {
+          body: params,
+        },
+      )
+
+      if (error) {
+        console.error('[AsaasCheckout] Invocation Error:', error)
+        // Edge Function Invocation Failed (Network, 500, etc)
+        // Try to parse the response body if available in error context, usually Supabase client returns a structured error
+        // But if it's a FunctionInvokeError, we might check details.
+
+        let errorMessage = 'Falha ao conectar com servidor de pagamento.'
+
+        // If the edge function returned a specific error structure in the body despite the http error code
+        // The supabase client might put it in `error.context` or similar, but simplified:
+        if (error instanceof Error) {
+          errorMessage = error.message
+        }
+
+        return {
+          error: errorMessage,
+        }
       }
-    }
 
-    if (data.error) {
-      console.error('Asaas Checkout API Error:', data.error)
-      return { error: data.error }
-    }
+      console.log('[AsaasCheckout] Response Data:', data)
 
-    return { checkoutUrl: data.checkoutUrl }
+      if (data.error) {
+        console.error('[AsaasCheckout] API Error:', data.error)
+        return { error: data.error }
+      }
+
+      if (!data.checkoutUrl) {
+        console.error('[AsaasCheckout] Missing URL in response')
+        return { error: 'Link de pagamento não recebido.' }
+      }
+
+      return { checkoutUrl: data.checkoutUrl }
+    } catch (err: any) {
+      console.error('[AsaasCheckout] Unexpected Exception:', err)
+      return { error: err.message || 'Erro inesperado ao criar pagamento' }
+    }
   },
 }

@@ -34,8 +34,10 @@ export default function Pagamento() {
 
     const initiateCheckout = async () => {
       setLoading(true)
+      setError(null)
+
       try {
-        const { checkoutUrl, error } =
+        const { checkoutUrl, error: serviceError } =
           await asaasCheckoutService.createCheckout({
             orderId,
             orderCode,
@@ -44,8 +46,12 @@ export default function Pagamento() {
             siteUrl: window.location.origin,
           })
 
-        if (error || !checkoutUrl) {
-          throw new Error(error || 'Não foi possível gerar o link de pagamento')
+        if (serviceError) {
+          throw new Error(serviceError)
+        }
+
+        if (!checkoutUrl) {
+          throw new Error('Não foi possível gerar o link de pagamento')
         }
 
         setCheckoutUrl(checkoutUrl)
@@ -53,12 +59,12 @@ export default function Pagamento() {
         // Automatic redirect
         window.location.href = checkoutUrl
       } catch (err: any) {
-        console.error(err)
+        console.error('Checkout Flow Error:', err)
         setError(err.message)
         setLoading(false)
         toast({
-          title: 'Erro',
-          description: 'Falha ao iniciar pagamento. Tente novamente.',
+          title: 'Erro no Pagamento',
+          description: err.message,
           variant: 'destructive',
         })
       }
@@ -85,12 +91,25 @@ export default function Pagamento() {
             ) : error ? (
               <div className="flex flex-col items-center gap-4">
                 <AlertCircle className="h-12 w-12 text-red-500" />
-                <p className="text-red-600 font-medium">{error}</p>
+                <div className="space-y-2">
+                  <p className="text-red-600 font-medium">Ocorreu um erro:</p>
+                  <p className="text-sm text-muted-foreground bg-muted p-2 rounded border border-border">
+                    {error}
+                  </p>
+                </div>
                 <Button
                   onClick={() => window.location.reload()}
                   variant="outline"
+                  className="mt-2"
                 >
                   Tentar Novamente
+                </Button>
+                <Button
+                  variant="link"
+                  onClick={() => navigate('/')}
+                  className="text-muted-foreground"
+                >
+                  Voltar ao Início
                 </Button>
               </div>
             ) : (
