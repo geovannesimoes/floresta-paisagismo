@@ -18,15 +18,11 @@ import {
   Order,
   OrderDeliverable,
 } from '@/services/ordersService'
-import {
-  DELIVERABLE_SECTIONS,
-  PLAN_DETAILS,
-  PlanName,
-} from '@/lib/plan-constants'
+import { DELIVERABLE_SECTIONS } from '@/lib/plan-constants'
 
 export default function AreaCliente() {
   const { toast } = useToast()
-  const { user, signIn, signOut } = useAuth() // Use global auth for QA logic
+  const { user, signIn, signOut } = useAuth()
 
   // Standard Login State
   const [orderCode, setOrderCode] = useState('')
@@ -38,7 +34,6 @@ export default function AreaCliente() {
   const [loading, setLoading] = useState(false)
   const [revisionText, setRevisionText] = useState('')
 
-  // Effect: If user is authenticated via QA login, fetch their orders
   useEffect(() => {
     if (user && user.email) {
       const fetchQaOrders = async () => {
@@ -47,7 +42,6 @@ export default function AreaCliente() {
           const { data } = await ordersService.getOrdersByEmail(user.email!)
           if (data && data.length > 0) {
             setOrders(data)
-            // Automatically select the first order
             const details = await ordersService.getOrderWithRelations(
               data[0].id,
             )
@@ -68,11 +62,9 @@ export default function AreaCliente() {
     setLoading(true)
 
     try {
-      // Normalize inputs: trim, remove #, uppercase code, lowercase email
       const normalizedCode = orderCode.trim().replace('#', '').toUpperCase()
       const normalizedEmail = email.trim().toLowerCase()
 
-      // Stealth QA Access Logic with updated code 'TESTE123'
       if (
         normalizedEmail === 'geovanne_simoes@hotmail.com' &&
         normalizedCode === 'TESTE123'
@@ -80,11 +72,9 @@ export default function AreaCliente() {
         const { error } = await signIn(normalizedEmail, 'teste')
         if (error) throw error
         toast({ title: 'Login realizado com sucesso' })
-        // The useEffect will pick up the user change and load data
         return
       }
 
-      // Customer Login using 8-char Code
       const { data, error } = await ordersService.getClientOrder(
         normalizedEmail,
         normalizedCode,
@@ -110,7 +100,6 @@ export default function AreaCliente() {
     if (user) {
       await signOut()
     }
-    // Reset all states
     setOrderCode('')
     setEmail('')
     setCurrentOrder(null)
@@ -130,15 +119,12 @@ export default function AreaCliente() {
     } else {
       toast({ title: 'Solicitação enviada!' })
       setRevisionText('')
-      // Refresh order data
       if (user && user.email) {
-        // If QA user, refresh current order details
         const details = await ordersService.getOrderWithRelations(
           currentOrder.id,
         )
         if (details.data) setCurrentOrder(details.data)
       } else {
-        // Standard user refresh - re-fetch using stored credentials logic
         const { data } = await ordersService.getClientOrder(
           currentOrder.client_email,
           currentOrder.code,
@@ -157,13 +143,42 @@ export default function AreaCliente() {
     return 'bg-gray-500'
   }
 
-  const canRequestRevision =
-    currentOrder &&
-    (currentOrder.plan === 'Jasmim' || currentOrder.plan === 'Ipê') &&
-    (!currentOrder.revisions ||
-      currentOrder.revisions.length < (currentOrder.plan === 'Jasmim' ? 2 : 1))
+  // Simplified logic for revision check based on features snapshot if available
+  const canRequestRevision = (() => {
+    if (!currentOrder) return false
 
-  // Render Login View if no order selected
+    // Use snapshot features if available to determine if revision is allowed
+    if (currentOrder.plan_snapshot_features) {
+      const hasRevisionFeature = currentOrder.plan_snapshot_features.some((f) =>
+        f.toLowerCase().includes('revisão'),
+      )
+      if (!hasRevisionFeature) return false
+    }
+
+    // Fallback logic based on plan name if no snapshot (legacy support)
+    if (
+      !currentOrder.plan_snapshot_features &&
+      currentOrder.plan !== 'Jasmim' &&
+      currentOrder.plan !== 'Ipê'
+    ) {
+      return false
+    }
+
+    // Check revision count limit
+    // Assuming Jasmim allows 2, others 1. Ideally this should be data-driven too.
+    // For MVP, if features mentions "2 rodadas", allow 2.
+    const maxRevisions =
+      currentOrder.plan_snapshot_features?.some((f) =>
+        f.includes('2 rodadas'),
+      ) || currentOrder.plan === 'Jasmim'
+        ? 2
+        : 1
+
+    return (
+      !currentOrder.revisions || currentOrder.revisions.length < maxRevisions
+    )
+  })()
+
   if (!currentOrder) {
     return (
       <div className="pt-24 pb-16 min-h-screen bg-accent/20 flex flex-col items-center justify-center">
@@ -216,16 +231,19 @@ export default function AreaCliente() {
     )
   }
 
-  // Group deliverables logic with plan-based filtering
-  const groupDeliverables = (items: OrderDeliverable[], planName: string) => {
-    const plan = PLAN_DETAILS[planName as PlanName]
-    const allowedChecklist = plan ? plan.checklist : []
-
+  // Simplified Grouping logic using hardcoded sections but checking against snapshot features
+  const groupDeliverables = (items: OrderDeliverable[], features: string[]) => {
     const isSectionAllowed = (sectionName: string) => {
       const sectionItems =
         DELIVERABLE_SECTIONS[sectionName as keyof typeof DELIVERABLE_SECTIONS]
       if (!sectionItems) return true
-      return sectionItems.some((item) => allowedChecklist.includes(item))
+
+      // If we have features snapshot, check against it
+      if (features && features.length > 0) {
+        return sectionItems.some((item) => features.includes(item))
+      }
+
+      return true // Fallback to show all if no snapshot
     }
 
     const groups: Record<string, OrderDeliverable[]> = {
@@ -262,7 +280,10 @@ export default function AreaCliente() {
   }
 
   const groupedDeliverables = currentOrder.deliverables
-    ? groupDeliverables(currentOrder.deliverables, currentOrder.plan)
+    ? groupDeliverables(
+        currentOrder.deliverables,
+        currentOrder.plan_snapshot_features || [],
+      )
     : null
 
   return (
@@ -277,7 +298,6 @@ export default function AreaCliente() {
           </span>
         </div>
 
-        {/* QA Order Selector */}
         {user && orders.length > 1 && (
           <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-sm font-bold text-yellow-800 mb-2">
@@ -331,7 +351,6 @@ export default function AreaCliente() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          {/* Sidebar Info */}
           <div className="md:col-span-4 lg:col-span-3 space-y-6">
             <Card>
               <CardHeader>
@@ -340,7 +359,9 @@ export default function AreaCliente() {
               <CardContent className="space-y-4 text-sm">
                 <div className="flex justify-between border-b pb-2">
                   <span className="text-muted-foreground">Plano</span>
-                  <span className="font-medium">{currentOrder.plan}</span>
+                  <span className="font-medium">
+                    {currentOrder.plan_snapshot_name || currentOrder.plan}
+                  </span>
                 </div>
                 <div className="flex justify-between border-b pb-2">
                   <span className="text-muted-foreground">Imóvel</span>
@@ -379,7 +400,6 @@ export default function AreaCliente() {
             </Card>
           </div>
 
-          {/* Main Content */}
           <div className="md:col-span-8 lg:col-span-9 space-y-8">
             <div className="bg-white rounded-xl shadow-sm border p-6">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
@@ -460,7 +480,6 @@ export default function AreaCliente() {
               )}
             </div>
 
-            {/* Revision Request Section */}
             {canRequestRevision && (
               <div className="bg-white rounded-xl shadow-sm border p-6">
                 <h2 className="text-xl font-bold mb-4">Solicitar Revisão</h2>

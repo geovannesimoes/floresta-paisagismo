@@ -48,11 +48,12 @@ export default function Index() {
   }
 
   // 3-Step Visual Guide
+  // Updated text to be generic and compatible with dynamic plans
   const steps = [
     {
       icon: <Leaf className="h-10 w-10 text-primary" />,
       title: '1. Escolha seu Plano',
-      desc: 'Selecione o pacote Lírio, Ipê ou Jasmim ideal para o seu espaço e orçamento.',
+      desc: 'Selecione o pacote ideal para o seu espaço e orçamento, com opções simples ou completas.',
     },
     {
       icon: <Camera className="h-10 w-10 text-primary" />,

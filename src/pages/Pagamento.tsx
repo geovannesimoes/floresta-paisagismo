@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { asaasCheckoutService } from '@/services/asaasCheckout'
-import { PLAN_DETAILS, PlanName } from '@/lib/plan-constants'
 
 export default function Pagamento() {
   const location = useLocation()
@@ -20,10 +19,10 @@ export default function Pagamento() {
   const orderId = location.state?.orderId
   const orderCode = location.state?.orderCode
   const planName = location.state?.planName
+  const priceCents = location.state?.priceCents
 
-  const planPrice = planName
-    ? Number(PLAN_DETAILS[planName as PlanName]?.price.replace(',', '.'))
-    : 0
+  // Calculate price from cents
+  const planPrice = priceCents ? priceCents / 100 : 0
 
   useEffect(() => {
     // If we don't have ID or Code, redirect to home

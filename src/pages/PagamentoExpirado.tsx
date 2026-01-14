@@ -8,7 +8,6 @@ export default function PagamentoExpirado() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
-  // Support both new 'orderCode' and legacy 'code'
   const orderCode = searchParams.get('orderCode') || searchParams.get('code')
 
   const [loading, setLoading] = useState(!!orderCode)
@@ -20,6 +19,8 @@ export default function PagamentoExpirado() {
         if (data && data.length > 0) setOrder(data[0])
         setLoading(false)
       })
+    } else {
+      setLoading(false)
     }
   }, [orderCode])
 

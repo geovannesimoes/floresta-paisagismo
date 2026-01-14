@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { CheckCircle2, Loader2, ArrowRight, Package } from 'lucide-react'
+import {
+  CheckCircle2,
+  Loader2,
+  ArrowRight,
+  Package,
+  Receipt,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ordersService, Order } from '@/services/ordersService'
 import { useToast } from '@/hooks/use-toast'
@@ -10,10 +16,10 @@ export default function PagamentoSucesso() {
   const navigate = useNavigate()
   const { toast } = useToast()
 
-  // Support both new 'orderCode' and legacy 'code'
   const orderCode = searchParams.get('orderCode') || searchParams.get('code')
   const [loading, setLoading] = useState(true)
   const [order, setOrder] = useState<Order | null>(null)
+  const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -23,9 +29,12 @@ export default function PagamentoSucesso() {
       }
 
       try {
+        // Fetch order by code
         const { data } = await ordersService.getOrderByCode(orderCode)
         if (data && data.length > 0) {
           setOrder(data[0])
+        } else {
+          setNotFound(true)
         }
       } catch (e) {
         console.error('Error fetching order:', e)
@@ -66,8 +75,8 @@ export default function PagamentoSucesso() {
           produção e em breve você receberá atualizações.
         </p>
 
-        {order && (
-          <div className="bg-muted/50 p-6 rounded-xl mb-8 border border-border text-left">
+        {order ? (
+          <div className="bg-muted/50 p-6 rounded-xl mb-8 border border-border text-left space-y-4">
             <div className="flex items-start gap-4">
               <div className="p-3 bg-white rounded-lg shadow-sm">
                 <Package className="h-6 w-6 text-primary" />
@@ -77,15 +86,45 @@ export default function PagamentoSucesso() {
                   Código do Pedido
                 </p>
                 <p className="text-xl font-mono font-bold tracking-wider text-foreground">
-                  {order.code}
-                </p>
-                <p className="text-sm font-medium text-green-600 mt-1">
-                  Status: {order.status}
+                  #{order.code}
                 </p>
               </div>
             </div>
+
+            <div className="flex items-start gap-4 border-t pt-4">
+              <div className="p-3 bg-white rounded-lg shadow-sm">
+                <Receipt className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Detalhes</p>
+                <p className="font-medium">
+                  Projeto {order.plan_snapshot_name || order.plan}
+                </p>
+                {order.plan_snapshot_price_cents && (
+                  <p className="text-sm text-muted-foreground">
+                    R${' '}
+                    {(order.plan_snapshot_price_cents / 100)
+                      .toFixed(2)
+                      .replace('.', ',')}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="text-center pt-2">
+              <span className="inline-block px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold uppercase">
+                Status: {order.status}
+              </span>
+            </div>
           </div>
-        )}
+        ) : notFound ? (
+          <div className="bg-yellow-50 p-4 rounded-lg mb-8 text-sm text-yellow-800">
+            <p className="font-bold">Aviso:</p>
+            Pagamento confirmado, mas não foi possível carregar os detalhes do
+            pedido no momento. Verifique seu e-mail para mais informações ou
+            entre em contato com o suporte informando o código do pagamento.
+          </div>
+        ) : null}
 
         <div className="space-y-4">
           <Button

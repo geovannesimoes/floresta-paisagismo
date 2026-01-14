@@ -26,8 +26,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { ordersService } from '@/services/ordersService'
 import { useSeo } from '@/hooks/use-seo'
-import { PLAN_DETAILS, PlanName } from '@/lib/plan-constants'
 import { formatCpfCnpj, formatPhone } from '@/lib/utils'
+import { Plan } from '@/services/plansService'
 
 const formSchema = z.object({
   nome: z.string().min(3, 'Nome muito curto'),
@@ -56,15 +56,18 @@ export default function Pedido() {
   const navigate = useNavigate()
   const { toast } = useToast()
 
-  const [selectedPlan, setSelectedPlan] = useState<PlanName>('Ipê')
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null)
   const [photos, setPhotos] = useState<File[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (state?.selectedPlan) {
       setSelectedPlan(state.selectedPlan)
+    } else {
+      // Redirect if no plan selected
+      navigate('/planos')
     }
-  }, [state])
+  }, [state, navigate])
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -91,6 +94,8 @@ export default function Pedido() {
   }
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!selectedPlan) return
+
     if (photos.length === 0) {
       toast({
         title: 'Fotos necessárias',
@@ -103,7 +108,7 @@ export default function Pedido() {
     setIsSubmitting(true)
 
     try {
-      // Create Order using Secure RPC
+      // Create Order using Secure RPC with snapshot data
       const { data: order, error } = await ordersService.createOrder({
         client_name: values.nome,
         client_email: values.email,
@@ -113,8 +118,14 @@ export default function Pedido() {
         dimensions: values.medidas,
         preferences: values.preferencias,
         notes: values.observacoes,
-        plan: selectedPlan,
+        plan: selectedPlan.name, // Legacy field
         status: 'Aguardando Pagamento',
+
+        // New Snapshot Fields
+        plan_id: selectedPlan.id,
+        plan_snapshot_name: selectedPlan.name,
+        plan_snapshot_price_cents: selectedPlan.price_cents,
+        plan_snapshot_features: selectedPlan.features?.map((f) => f.text) || [],
       })
 
       if (error || !order) {
@@ -133,7 +144,8 @@ export default function Pedido() {
         state: {
           orderId: order.id,
           orderCode: order.code,
-          planName: selectedPlan,
+          planName: selectedPlan.name,
+          priceCents: selectedPlan.price_cents, // Pass cents
           clientEmail: values.email,
         },
       })
@@ -151,7 +163,7 @@ export default function Pedido() {
     }
   }
 
-  const planDetails = PLAN_DETAILS[selectedPlan]
+  if (!selectedPlan) return null
 
   return (
     <div className="pt-32 pb-16 min-h-screen bg-stone-50">
@@ -377,7 +389,6 @@ export default function Pedido() {
                   </div>
 
                   <div className="block lg:hidden">
-                    {/* Mobile Submit Button acts same as Desktop */}
                     <Button
                       type="submit"
                       className="w-full text-lg h-14 rounded-full font-bold shadow-lg"
@@ -398,7 +409,7 @@ export default function Pedido() {
             </div>
           </div>
 
-          {/* Mini-Checkout / Summary Card */}
+          {/* Summary Card */}
           <div className="lg:col-span-1">
             <div className="sticky top-24 space-y-6">
               <Card className="shadow-lg border-primary/20 overflow-hidden">
@@ -411,26 +422,21 @@ export default function Pedido() {
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="font-bold text-xl">
-                        Projeto {selectedPlan}
+                        Projeto {selectedPlan.name}
                       </h3>
                       <p className="text-sm text-muted-foreground">
-                        {planDetails?.description}
+                        {selectedPlan.description}
                       </p>
                     </div>
                   </div>
 
                   <div className="space-y-3 mb-6">
-                    {planDetails?.marketing_features
-                      .slice(0, 4)
-                      .map((feature, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-start gap-2 text-sm"
-                        >
-                          <Check className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                          <span>{feature}</span>
-                        </div>
-                      ))}
+                    {selectedPlan.features?.slice(0, 4).map((feature, idx) => (
+                      <div key={idx} className="flex items-start gap-2 text-sm">
+                        <Check className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                        <span>{feature.text}</span>
+                      </div>
+                    ))}
                   </div>
 
                   <div className="flex justify-between items-end border-t pt-4 mb-6">
@@ -438,7 +444,10 @@ export default function Pedido() {
                       Total
                     </span>
                     <span className="text-3xl font-bold text-foreground">
-                      R$ {planDetails?.price}
+                      R${' '}
+                      {(selectedPlan.price_cents / 100)
+                        .toFixed(2)
+                        .replace('.', ',')}
                     </span>
                   </div>
 

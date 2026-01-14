@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
+import { Plan } from './plansService'
 
 export interface Order {
   id: string
@@ -13,6 +14,12 @@ export interface Order {
   preferences?: string
   notes?: string
   plan: string
+  // Snapshot fields
+  plan_id?: string
+  plan_snapshot_name?: string
+  plan_snapshot_price_cents?: number
+  plan_snapshot_features?: string[] // JSONB array stored as string[]
+
   status: string
   created_at: string
   price?: number
@@ -49,10 +56,27 @@ export interface RevisionRequest {
   created_at: string
 }
 
+interface CreateOrderParams {
+  client_name: string
+  client_email: string
+  client_cpf_cnpj: string
+  client_whatsapp: string
+  property_type: string
+  dimensions?: string
+  preferences?: string
+  notes?: string
+  plan: string
+  status?: string
+  // Snapshot Data
+  plan_id?: string
+  plan_snapshot_name?: string
+  plan_snapshot_price_cents?: number
+  plan_snapshot_features?: string[]
+}
+
 export const ordersService = {
-  async createOrder(order: Partial<Order>) {
+  async createOrder(order: CreateOrderParams) {
     // Uses RPC to bypass RLS and ensure secure creation
-    // We pass data as text, allowing Supabase to handle types or explicit casting in RPC
     const { data, error } = await supabase.rpc('create_order_and_return', {
       p_client_name: order.client_name,
       p_client_email: order.client_email,
@@ -63,6 +87,11 @@ export const ordersService = {
       p_preferences: order.preferences || null,
       p_notes: order.notes || null,
       p_plan: order.plan,
+      // Pass snapshot data to RPC
+      p_plan_id: order.plan_id || null,
+      p_plan_snapshot_name: order.plan_snapshot_name || null,
+      p_plan_snapshot_price_cents: order.plan_snapshot_price_cents || null,
+      p_plan_snapshot_features: order.plan_snapshot_features || null,
     })
 
     if (error) return { data: null, error }
@@ -73,8 +102,6 @@ export const ordersService = {
   },
 
   async confirmPayment(orderId: string, orderCode: string, email: string) {
-    // Uses RPC to securely update status without direct update permission
-    // RPC has been updated to accept text for order_id and cast to UUID internally
     const { data, error } = await supabase.rpc('confirm_order_payment', {
       p_order_id: orderId,
       p_order_code: orderCode,
@@ -88,7 +115,6 @@ export const ordersService = {
   },
 
   async getClientOrder(email: string, code: string) {
-    // Uses RPC that returns full JSON object to bypass RLS on related tables
     const { data, error } = await supabase.rpc('get_client_order_details', {
       p_email: email,
       p_code: code,
@@ -97,12 +123,20 @@ export const ordersService = {
     if (error) return { data: null, error }
     if (!data) return { data: null, error: 'Pedido não encontrado' }
 
-    // Data comes as JSON, no need to fetch relations manually
     return { data: data as Order, error: null }
   },
 
+  async getOrderByCode(code: string) {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('code', code)
+
+    if (error) return { data: null, error }
+    return { data: data as Order[], error: null }
+  },
+
   async getOrdersByEmail(email: string) {
-    // Fetches all orders for a specific email (Authenticated QA flow)
     const { data, error } = await supabase
       .from('orders')
       .select('*')
@@ -116,7 +150,6 @@ export const ordersService = {
   },
 
   async getOrderWithRelations(id: string) {
-    // For authenticated users (Admin/QA) we can still use standard selects
     const { data, error } = await supabase
       .from('orders')
       .select('*')
@@ -156,7 +189,6 @@ export const ordersService = {
   },
 
   async updateOrderStatus(id: string, status: string) {
-    // Kept for Admin usage
     const { data, error } = await supabase
       .from('orders')
       .update({ status, updated_at: new Date().toISOString() })
@@ -214,7 +246,6 @@ export const ordersService = {
   },
 
   async deleteDeliverable(id: string) {
-    // 1. Get the URL to delete from storage
     const { data: item } = await supabase
       .from('order_deliverables')
       .select('url')
@@ -224,7 +255,6 @@ export const ordersService = {
     if (item && item.url) {
       try {
         const urlObj = new URL(item.url)
-        // Storage path is relative to bucket root.
         const path = urlObj.pathname.split('/order-uploads/')[1]
         if (path) {
           await supabase.storage

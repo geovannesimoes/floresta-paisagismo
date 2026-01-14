@@ -58,7 +58,6 @@ Deno.serve(async (req: Request) => {
     if (!orderId) missingFields.push('orderId')
     if (!orderCode) missingFields.push('orderCode')
     if (!price) missingFields.push('price')
-    // siteUrl is optional but recommended for redirects
 
     if (missingFields.length > 0) {
       return new Response(
@@ -72,6 +71,7 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    // 1. Fetch Order to validate and check existing Asaas ID
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('*')
@@ -99,6 +99,7 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    // If order already has a checkout URL, return it
     if (order.asaas_checkout_url) {
       return new Response(
         JSON.stringify({ checkoutUrl: order.asaas_checkout_url }),
@@ -113,9 +114,9 @@ Deno.serve(async (req: Request) => {
 
     let customerId = order.asaas_customer_id
 
-    // Check or Create Customer in Asaas
+    // 2. Check or Create Customer in Asaas
     if (!customerId) {
-      // 1. Check by Email
+      // Search by Email first
       const customerSearchRes = await fetch(
         `${ASAAS_API_URL}/customers?email=${encodeURIComponent(order.client_email)}`,
         { headers },
@@ -132,7 +133,7 @@ Deno.serve(async (req: Request) => {
 
       if (existingCustomer) {
         customerId = existingCustomer.id
-        // Update customer data to match current order
+        // Update customer data
         await fetch(`${ASAAS_API_URL}/customers/${customerId}`, {
           method: 'PUT',
           headers,
@@ -176,7 +177,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Construct Payment Payload
+    // 3. Construct Payment Payload
     const paymentPayload: any = {
       customer: customerId,
       billingType: 'UNDEFINED',
@@ -184,20 +185,25 @@ Deno.serve(async (req: Request) => {
       dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
         .toISOString()
         .split('T')[0],
-      description: `Projeto Paisagístico - Plano ${planName}`,
-      externalReference: orderCode, // Important for webhook matching
+      description: `Projeto Paisagístico - ${planName}`,
+      externalReference: orderCode, // Used for webhook matching
       postalService: false,
     }
 
-    // Add Redirect URLs if siteUrl is provided
+    // 4. Add Redirect URLs if siteUrl is provided
+    // CRITICAL: Must append orderCode to URL parameters for reliable return flow
     if (siteUrl) {
+      const successUrl = `${siteUrl}/pagamento/sucesso?orderCode=${orderCode}`
+      const cancelUrl = `${siteUrl}/pagamento/cancelado?orderCode=${orderCode}`
+      // Expired isn't a standard redirect in Asaas API but useful if supported or for manual links
+      const expiredUrl = `${siteUrl}/pagamento/expirado?orderCode=${orderCode}`
+
       paymentPayload.callback = {
-        successUrl: `${siteUrl}/pagamento/sucesso?orderCode=${orderCode}`,
+        successUrl: successUrl,
         autoRedirect: true,
       }
-      paymentPayload.successUrl = `${siteUrl}/pagamento/sucesso?orderCode=${orderCode}`
-      paymentPayload.cancelUrl = `${siteUrl}/pagamento/cancelado?orderCode=${orderCode}`
-      paymentPayload.expiredUrl = `${siteUrl}/pagamento/expirado?orderCode=${orderCode}`
+      // Setting these for completeness, though callback.successUrl is primary for Asaas v3
+      paymentPayload.successUrl = successUrl
     }
 
     const paymentRes = await fetch(`${ASAAS_API_URL}/payments`, {
@@ -227,6 +233,7 @@ Deno.serve(async (req: Request) => {
     const checkoutUrl = paymentData.invoiceUrl
     const checkoutId = paymentData.id
 
+    // 5. Update Order with Payment Info
     const { error: updateError } = await supabase
       .from('orders')
       .update({

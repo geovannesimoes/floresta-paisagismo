@@ -16,6 +16,7 @@ import {
   CheckCircle,
   X,
   Eye,
+  List,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -79,10 +80,10 @@ import { siteSettingsService } from '@/services/siteSettingsService'
 import { ordersService, Order } from '@/services/ordersService'
 import { useSiteSettings } from '@/hooks/use-site-settings'
 import {
-  PLAN_DETAILS,
   DELIVERABLE_CATEGORIES,
   PlanName,
 } from '@/lib/plan-constants'
+import { PlansManager } from '@/components/admin/PlansManager'
 
 // Constants for Routes
 const VALID_ROUTES = [
@@ -329,18 +330,20 @@ export default function Admin() {
   }
 
   // --- HELPERS ---
-  const getPlanDetails = (planName: string) => {
-    return (
-      PLAN_DETAILS[planName as PlanName] || {
-        price: '?',
-        checklist: [],
-      }
-    )
-  }
-
-  const getPlanChecklist = (plan: string) => {
-    const details = PLAN_DETAILS[plan as PlanName]
-    return details ? details.checklist : DELIVERABLE_CATEGORIES
+  const getOrderPlanDetails = (order: Order) => {
+    // Prefer snapshot data if available
+    if (order.plan_snapshot_price_cents !== undefined && order.plan_snapshot_name) {
+       return {
+           price: (order.plan_snapshot_price_cents / 100).toFixed(2),
+           checklist: order.plan_snapshot_features || DELIVERABLE_CATEGORIES
+       }
+    }
+    
+    // Fallback to legacy static or just display nothing specialized
+    return {
+        price: order.price ? order.price.toFixed(2) : '?',
+        checklist: DELIVERABLE_CATEGORIES
+    }
   }
 
   if (authLoading)
@@ -391,7 +394,7 @@ export default function Admin() {
               value="settings"
               className="data-[state=active]:bg-primary data-[state=active]:text-white"
             >
-              <Settings className="h-4 w-4 mr-2" /> Site Settings
+              <Settings className="h-4 w-4 mr-2" /> Configurações
             </TabsTrigger>
           </TabsList>
 
@@ -416,7 +419,6 @@ export default function Admin() {
                   </TableHeader>
                   <TableBody>
                     {orders.map((order) => {
-                      const planInfo = getPlanDetails(order.plan)
                       return (
                         <TableRow key={order.id}>
                           <TableCell className="font-mono font-bold">
@@ -432,7 +434,7 @@ export default function Admin() {
                           </TableCell>
                           <TableCell>
                             <span className="font-medium">
-                              Projeto {order.plan}
+                              Projeto {order.plan_snapshot_name || order.plan}
                             </span>
                           </TableCell>
                           <TableCell>
@@ -564,8 +566,7 @@ export default function Admin() {
                   </TableBody>
                 </Table>
               </CardContent>
-            </Card>
-          </TabsContent>
+            </TabsContent>
 
           <TabsContent value="settings">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -577,6 +578,12 @@ export default function Admin() {
                   >
                     <Palette className="mr-3 h-5 w-5 text-gray-500" /> Cores &
                     Identidade
+                  </a>
+                  <a
+                    href="#plans"
+                    className="flex items-center px-3 py-2 text-sm font-medium rounded-md bg-white text-gray-900 hover:bg-gray-50 border"
+                  >
+                    <List className="mr-3 h-5 w-5 text-gray-500" /> Planos & Preços
                   </a>
                   <a
                     href="#hero"
@@ -692,6 +699,11 @@ export default function Admin() {
                       </div>
                     </CardContent>
                   </Card>
+                </section>
+
+                {/* Plans Section */}
+                <section id="plans" className="scroll-mt-20">
+                   <PlansManager />
                 </section>
 
                 {/* Hero Section */}
@@ -919,8 +931,8 @@ export default function Admin() {
                       <strong>Email:</strong> {selectedOrder.client_email}
                     </p>
                     <p>
-                      <strong>Plano:</strong> Projeto {selectedOrder.plan} — R${' '}
-                      {getPlanDetails(selectedOrder.plan).price}
+                      <strong>Plano:</strong> Projeto {selectedOrder.plan_snapshot_name || selectedOrder.plan} — R${' '}
+                      {getOrderPlanDetails(selectedOrder).price}
                     </p>
                     <p>
                       <strong>Imóvel:</strong> {selectedOrder.property_type}
@@ -988,7 +1000,8 @@ export default function Admin() {
                     </div>
 
                     <div className="space-y-2 mb-6">
-                      {getPlanChecklist(selectedOrder.plan).map((item) => {
+                      {/* Use snapshot features or fallback for checklist */}
+                      {getOrderPlanDetails(selectedOrder).checklist.map((item: string) => {
                         const fileCount =
                           selectedOrder.deliverables?.filter(
                             (d) => d.title === item,
@@ -1018,8 +1031,8 @@ export default function Admin() {
                         )
                       })}
                     </div>
-
-                    <h4 className="font-bold mb-4 border-t pt-4">
+                    {/* ... rest of the modal ... */}
+                     <h4 className="font-bold mb-4 border-t pt-4">
                       Upload de Arquivos
                     </h4>
                     <div className="space-y-3">
@@ -1137,6 +1150,7 @@ export default function Admin() {
           open={isProjectDialogOpen}
           onOpenChange={setIsProjectDialogOpen}
         >
+          {/* ... existing project modal content ... */}
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Projeto</DialogTitle>
@@ -1245,3 +1259,4 @@ export default function Admin() {
     </div>
   )
 }
+
