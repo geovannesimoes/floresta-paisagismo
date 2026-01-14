@@ -2,11 +2,6 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
-const ASAAS_API_URL =
-  Deno.env.get('ASAAS_ENV') === 'production'
-    ? 'https://www.asaas.com/api/v3'
-    : 'https://sandbox.asaas.com/api/v3'
-
 Deno.serve(async (req: Request) => {
   // 1. Handle CORS Preflight
   if (req.method === 'OPTIONS') {
@@ -18,13 +13,22 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     const asaasToken = Deno.env.get('ASAAS_ACCESS_TOKEN')
+    const asaasEnv = Deno.env.get('ASAAS_ENV')
 
-    if (!supabaseUrl || !supabaseServiceKey || !asaasToken) {
-      console.error('Missing environment variables')
+    const missingVars = {
+      SUPABASE_URL: !supabaseUrl,
+      SUPABASE_SERVICE_ROLE_KEY: !supabaseServiceKey,
+      ASAAS_ACCESS_TOKEN: !asaasToken,
+      ASAAS_ENV: !asaasEnv,
+    }
+
+    if (Object.values(missingVars).some((v) => v)) {
+      console.error('Missing environment variables:', missingVars)
       return new Response(
         JSON.stringify({
           error:
             'Server configuration error: Missing required environment variables',
+          missing: missingVars,
         }),
         {
           status: 500,
@@ -33,7 +37,12 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const ASAAS_API_URL =
+      asaasEnv === 'production'
+        ? 'https://api.asaas.com/v3'
+        : 'https://api-sandbox.asaas.com/v3'
+
+    const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
 
     // 3. Parse and Validate Request Body
     let body
@@ -93,7 +102,7 @@ Deno.serve(async (req: Request) => {
 
     const headers = {
       'Content-Type': 'application/json',
-      access_token: asaasToken,
+      access_token: asaasToken!,
     }
 
     // 5. Find or Create Customer in Asaas
@@ -102,7 +111,9 @@ Deno.serve(async (req: Request) => {
     if (!customerId) {
       // Search by email first
       const customerSearchRes = await fetch(
-        `${ASAAS_API_URL}/customers?email=${encodeURIComponent(order.client_email)}`,
+        `${ASAAS_API_URL}/customers?email=${encodeURIComponent(
+          order.client_email,
+        )}`,
         { headers },
       )
 
