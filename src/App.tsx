@@ -17,6 +17,9 @@ import Projetos from './pages/Projetos'
 import ProjetoDetalhe from './pages/ProjetoDetalhe'
 import Pedido from './pages/Pedido'
 import Pagamento from './pages/Pagamento'
+import PagamentoSucesso from './pages/PagamentoSucesso'
+import PagamentoCancelado from './pages/PagamentoCancelado'
+import PagamentoExpirado from './pages/PagamentoExpirado'
 import AreaCliente from './pages/AreaCliente'
 import Admin from './pages/Admin'
 import AdminLogin from './pages/AdminLogin'
@@ -48,6 +51,9 @@ const router = createBrowserRouter([
           { path: '/projetos/:id', element: <ProjetoDetalhe /> },
           { path: '/pedido', element: <Pedido /> },
           { path: '/pagamento', element: <Pagamento /> },
+          { path: '/pagamento/sucesso', element: <PagamentoSucesso /> },
+          { path: '/pagamento/cancelado', element: <PagamentoCancelado /> },
+          { path: '/pagamento/expirado', element: <PagamentoExpirado /> },
           { path: '/area-cliente', element: <AreaCliente /> },
         ],
       },

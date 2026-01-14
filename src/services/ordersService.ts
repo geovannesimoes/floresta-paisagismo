@@ -14,6 +14,11 @@ export interface Order {
   plan: string
   status: string
   created_at: string
+  price?: number
+  asaas_checkout_id?: string
+  asaas_checkout_url?: string
+  asaas_status?: string
+  paid_at?: string
   photos?: OrderPhoto[]
   deliverables?: OrderDeliverable[]
   revisions?: RevisionRequest[]
