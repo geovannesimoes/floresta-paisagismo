@@ -45,54 +45,92 @@ Deno.serve(async (req: Request) => {
       })
     }
 
+    // Determine New Status based on Event Type
     let newStatus = ''
     let updateData: any = {
       asaas_status: eventType,
-      asaas_payment_id: payment.id, // Ensure we track this
+      asaas_payment_id: payment.id,
+      asaas_webhook_last_event_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
 
-    // Map Asaas events to system status
     switch (eventType) {
       case 'PAYMENT_CONFIRMED':
       case 'PAYMENT_RECEIVED':
+      case 'CHECKOUT_PAID':
         newStatus = 'Recebido'
         updateData.status = 'Recebido'
-        updateData.paid_at = new Date().toISOString()
         updateData.payment_status = 'paid'
+        updateData.paid_at = new Date().toISOString()
         break
+
+      case 'PAYMENT_CANCELED':
+      case 'CHECKOUT_CANCELED':
+        newStatus = 'Cancelado'
+        updateData.status = 'Cancelado'
+        updateData.payment_status = 'canceled'
+        break
+
       case 'PAYMENT_OVERDUE':
-        // Only update status if it wasn't paid before (optional logic, but safe)
+      case 'CHECKOUT_EXPIRED':
+        newStatus = 'Expirado'
         updateData.status = 'Expirado'
         break
-      case 'PAYMENT_REFUNDED':
-        updateData.status = 'Cancelado'
-        updateData.payment_status = 'refunded'
+
+      case 'PAYMENT_CREATED':
+      case 'CHECKOUT_CREATED':
+        newStatus = 'Aguardando Pagamento'
+        updateData.status = 'Aguardando Pagamento'
         break
-      case 'PAYMENT_DELETED':
-        // If deleted in Asaas, we might want to cancel here too
-        updateData.status = 'Cancelado'
-        break
+
       default:
-        // For CREATED, UPDATED, etc., just update metadata
+        // For other events, we just update tracking info (asaas_status, timestamp) but not the main order status
+        console.log(`Event ${eventType} received, updating metadata only.`)
         break
     }
 
-    // Update using asaas_checkout_id (which corresponds to invoice Id usually, but payment.id is safer if we saved it)
-    // We try to match by asaas_checkout_id which we saved as payment.id in create-checkout
+    // Lookup Order
+    // Try by externalReference (code), then by asaas_checkout_id, then by asaas_payment_id
 
-    // Check if order exists first to avoid silent failure or error
-    const { data: order, error: findError } = await supabase
-      .from('orders')
-      .select('id, status')
-      .eq('asaas_checkout_id', payment.id)
-      .maybeSingle()
+    let orderMatch = null
 
-    if (findError) {
-      console.error('Error finding order:', findError)
-      // Return 200 to Asaas to stop retries, but log error
+    // 1. Try Code (externalReference)
+    if (payment.externalReference) {
+      const { data } = await supabase
+        .from('orders')
+        .select('id, status')
+        .eq('code', payment.externalReference)
+        .maybeSingle()
+      orderMatch = data
+    }
+
+    // 2. Try Checkout ID (if code didn't work)
+    if (!orderMatch) {
+      const { data } = await supabase
+        .from('orders')
+        .select('id, status')
+        .eq('asaas_checkout_id', payment.id)
+        .maybeSingle()
+      orderMatch = data
+    }
+
+    // 3. Try Payment ID (if still not found)
+    if (!orderMatch) {
+      const { data } = await supabase
+        .from('orders')
+        .select('id, status')
+        .eq('asaas_payment_id', payment.id)
+        .maybeSingle()
+      orderMatch = data
+    }
+
+    if (!orderMatch) {
+      console.warn(
+        `Order not found for Payment ID: ${payment.id}, Ref: ${payment.externalReference}`,
+      )
+      // Return 200 to acknowledge receipt and prevent Asaas from retrying
       return new Response(
-        JSON.stringify({ received: true, error: 'Db error finding order' }),
+        JSON.stringify({ received: true, warning: 'Order match failed' }),
         {
           status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -100,47 +138,42 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    if (!order) {
-      console.warn(`Order not found for payment ID: ${payment.id}`)
-      // Return 200 to avoid retries for unrelated payments
-      return new Response(
-        JSON.stringify({ received: true, warning: 'Order not found' }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        },
-      )
+    // Prevent overwriting 'Recebido' status with 'Expirado' or others (race conditions or late events)
+    if (
+      orderMatch.status === 'Recebido' &&
+      newStatus !== 'Recebido' &&
+      newStatus !== ''
+    ) {
+      console.log('Order already Paid, skipping status update to', newStatus)
+      // We still update metadata
+      delete updateData.status
+      delete updateData.payment_status
+      delete updateData.paid_at
     }
 
-    // If order is already paid, don't overwrite with 'Expirado' if a race condition happens
-    if (order.status === 'Recebido' && newStatus !== 'Recebido') {
-      console.log(
-        'Order already paid, ignoring subsequent non-payment status update',
-      )
-      return new Response(JSON.stringify({ received: true }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
+    // Execute Update
     const { error: updateError } = await supabase
       .from('orders')
       .update(updateData)
-      .eq('id', order.id)
+      .eq('id', orderMatch.id)
 
     if (updateError) {
       console.error('Error updating order:', updateError)
       throw updateError
     }
 
-    return new Response(JSON.stringify({ received: true }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return new Response(
+      JSON.stringify({ received: true, orderId: orderMatch.id }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
+    )
   } catch (error: any) {
     console.error('Webhook Internal Error:', error)
-    // Return 200 to Asaas to prevent indefinite retries if it's a code error we can't fix immediately
-    // Unless it's a temporary database glitch, but for safety in this context:
+    // Return 200 to prevent retries on internal logic errors if possible,
+    // but 500 if we want Asaas to try again later (e.g. database down).
+    // Given the request to return 200 even if order not found, we generally prefer 200 unless critical failure.
     return new Response(JSON.stringify({ error: error.message }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

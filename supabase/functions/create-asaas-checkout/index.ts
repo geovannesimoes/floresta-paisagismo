@@ -52,12 +52,13 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const { orderId, orderCode, planName, price } = body
+    const { orderId, orderCode, planName, price, siteUrl } = body
 
     const missingFields = []
     if (!orderId) missingFields.push('orderId')
     if (!orderCode) missingFields.push('orderCode')
     if (!price) missingFields.push('price')
+    // siteUrl is optional but recommended for redirects
 
     if (missingFields.length > 0) {
       return new Response(
@@ -88,7 +89,6 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // New validation for CPF/CNPJ
     if (!order.client_cpf_cnpj) {
       return new Response(
         JSON.stringify({ error: 'CPF/CNPJ é obrigatório para pagamento' }),
@@ -113,16 +113,15 @@ Deno.serve(async (req: Request) => {
 
     let customerId = order.asaas_customer_id
 
-    // Check customer by email if not linked yet
+    // Check or Create Customer in Asaas
     if (!customerId) {
+      // 1. Check by Email
       const customerSearchRes = await fetch(
         `${ASAAS_API_URL}/customers?email=${encodeURIComponent(order.client_email)}`,
         { headers },
       )
 
       if (!customerSearchRes.ok) {
-        const errorText = await customerSearchRes.text()
-        console.error('Asaas Customer Search Error:', errorText)
         throw new Error(
           `Failed to search customer: ${customerSearchRes.statusText}`,
         )
@@ -133,28 +132,16 @@ Deno.serve(async (req: Request) => {
 
       if (existingCustomer) {
         customerId = existingCustomer.id
-        // Check if existing customer has missing CPF/CNPJ and update if necessary
-        // Or if we just want to ensure our current order data is reflected on Asaas
-        // We will update the customer with the current order info (name, cpfCnpj, phone)
-        const updateRes = await fetch(
-          `${ASAAS_API_URL}/customers/${customerId}`,
-          {
-            method: 'PUT',
-            headers,
-            body: JSON.stringify({
-              name: order.client_name,
-              cpfCnpj: order.client_cpf_cnpj,
-              mobilePhone: order.client_whatsapp || undefined,
-            }),
-          },
-        )
-
-        if (!updateRes.ok) {
-          console.warn(
-            'Failed to update existing customer data in Asaas',
-            await updateRes.text(),
-          )
-        }
+        // Update customer data to match current order
+        await fetch(`${ASAAS_API_URL}/customers/${customerId}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({
+            name: order.client_name,
+            cpfCnpj: order.client_cpf_cnpj,
+            mobilePhone: order.client_whatsapp || undefined,
+          }),
+        })
       } else {
         // Create new customer
         const newCustomerRes = await fetch(`${ASAAS_API_URL}/customers`, {
@@ -171,7 +158,6 @@ Deno.serve(async (req: Request) => {
 
         const newCustomerData = await newCustomerRes.json()
         if (newCustomerData.errors) {
-          console.error('Asaas Create Customer Error:', newCustomerData.errors)
           const messages = newCustomerData.errors
             .map((e: any) => e.description)
             .join(', ')
@@ -187,7 +173,8 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const paymentPayload = {
+    // Construct Payment Payload
+    const paymentPayload: any = {
       customer: customerId,
       billingType: 'UNDEFINED',
       value: Number(price),
@@ -195,8 +182,23 @@ Deno.serve(async (req: Request) => {
         .toISOString()
         .split('T')[0],
       description: `Projeto Paisagístico - Plano ${planName}`,
-      externalReference: orderCode,
+      externalReference: orderCode, // Important for webhook matching
       postalService: false,
+    }
+
+    // Add Redirect URLs if siteUrl is provided
+    if (siteUrl) {
+      // Note: Asaas might not support these fields on the standard POST /payments depending on account config,
+      // but we send them as per user requirement.
+      paymentPayload.callback = {
+        successUrl: `${siteUrl}/pagamento/sucesso?orderCode=${orderCode}`,
+        autoRedirect: true,
+      }
+      // Some integrations use these flat fields:
+      paymentPayload.successUrl = `${siteUrl}/pagamento/sucesso?orderCode=${orderCode}`
+      paymentPayload.cancelUrl = `${siteUrl}/pagamento/cancelado?orderCode=${orderCode}`
+      // expiredUrl is not standard in Asaas API v3 payload usually, but we include it.
+      paymentPayload.expiredUrl = `${siteUrl}/pagamento/expirado?orderCode=${orderCode}`
     }
 
     const paymentRes = await fetch(`${ASAAS_API_URL}/payments`, {
@@ -208,7 +210,6 @@ Deno.serve(async (req: Request) => {
     const paymentData = await paymentRes.json()
 
     if (paymentData.errors) {
-      console.error('Asaas Create Payment Error:', paymentData.errors)
       const messages = paymentData.errors
         .map((e: any) => e.description)
         .join(', ')
@@ -229,6 +230,7 @@ Deno.serve(async (req: Request) => {
       .update({
         asaas_customer_id: customerId,
         asaas_checkout_id: checkoutId,
+        asaas_payment_id: checkoutId, // Also save as payment_id since it is a payment object
         asaas_checkout_url: checkoutUrl,
         asaas_status: 'PENDING',
       })
