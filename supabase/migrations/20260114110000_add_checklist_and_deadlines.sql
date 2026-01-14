@@ -1,7 +1,7 @@
 -- Create order_checklist_items table
 CREATE TABLE IF NOT EXISTS public.order_checklist_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+    order_id TEXT NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
     text TEXT NOT NULL,
     is_done BOOLEAN DEFAULT false,
     sort_order INTEGER DEFAULT 0,

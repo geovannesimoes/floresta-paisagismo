@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { CheckCircle, Circle, Loader2, Info } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import {
   Tooltip,
   TooltipContent,
@@ -9,8 +8,8 @@ import {
 } from '@/components/ui/tooltip'
 import {
   ordersService,
-  Order,
   OrderChecklistItem,
+  Order,
 } from '@/services/ordersService'
 import { cn } from '@/lib/utils'
 
@@ -24,32 +23,32 @@ export function OrderChecklist({ order }: OrderChecklistProps) {
   const [toggling, setToggling] = useState<string | null>(null)
 
   useEffect(() => {
-    loadChecklist()
-  }, [order.id])
+    const loadChecklist = async () => {
+      setLoading(true)
+      try {
+        // 1. Try to fetch existing items
+        const { data } = await ordersService.getChecklist(order.id)
 
-  const loadChecklist = async () => {
-    setLoading(true)
-    try {
-      // 1. Try to fetch existing items
-      const { data } = await ordersService.getChecklist(order.id)
-
-      if (data && data.length > 0) {
-        setItems(data)
-      } else {
-        // 2. If empty, initialize
-        const planName = order.plan_snapshot_name || order.plan
-        const { data: newItems } = await ordersService.initChecklist(
-          order.id,
-          planName,
-        )
-        if (newItems) setItems(newItems)
+        if (data && data.length > 0) {
+          setItems(data)
+        } else {
+          // 2. If empty, initialize
+          const planName = order.plan_snapshot_name || order.plan
+          const { data: newItems } = await ordersService.initChecklist(
+            order.id,
+            planName,
+          )
+          if (newItems) setItems(newItems)
+        }
+      } catch (e) {
+        console.error('Failed to load checklist', e)
+      } finally {
+        setLoading(false)
       }
-    } catch (e) {
-      console.error('Failed to load checklist', e)
-    } finally {
-      setLoading(false)
     }
-  }
+
+    loadChecklist()
+  }, [order.id, order.plan_snapshot_name, order.plan])
 
   const handleToggle = async (item: OrderChecklistItem) => {
     setToggling(item.id)
