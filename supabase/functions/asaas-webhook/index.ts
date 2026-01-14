@@ -94,7 +94,7 @@ Deno.serve(async (req: Request) => {
     if (payment.externalReference) {
       const { data } = await supabase
         .from('orders')
-        .select('id, status, payment_status')
+        .select('id, status, payment_status, plan, plan_snapshot_name, paid_at')
         .eq('code', payment.externalReference)
         .maybeSingle()
       orderMatch = data
@@ -104,7 +104,7 @@ Deno.serve(async (req: Request) => {
     if (!orderMatch) {
       const { data } = await supabase
         .from('orders')
-        .select('id, status, payment_status')
+        .select('id, status, payment_status, plan, plan_snapshot_name, paid_at')
         .eq('asaas_payment_id', payment.id)
         .maybeSingle()
       orderMatch = data
@@ -114,7 +114,7 @@ Deno.serve(async (req: Request) => {
     if (!orderMatch && checkoutId) {
       const { data } = await supabase
         .from('orders')
-        .select('id, status, payment_status')
+        .select('id, status, payment_status, plan, plan_snapshot_name, paid_at')
         .eq('asaas_checkout_id', checkoutId)
         .maybeSingle()
       orderMatch = data
@@ -158,9 +158,17 @@ Deno.serve(async (req: Request) => {
         if (paymentStatus) {
           updateData.payment_status = paymentStatus
         }
-        if (newStatus === 'recebido') {
+
+        // --- NEW LOGIC FOR DEADLINES ---
+        if (newStatus === 'recebido' && !orderMatch.paid_at) {
           updateData.paid_at = new Date().toISOString()
+
+          const planName =
+            orderMatch.plan_snapshot_name || orderMatch.plan || ''
+          const deadlineDays = planName.includes('Jasmim') ? 3 : 7
+          updateData.delivery_deadline_days = deadlineDays
         }
+        // -------------------------------
       }
     }
 

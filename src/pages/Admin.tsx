@@ -12,11 +12,8 @@ import {
   Package,
   Palette,
   LayoutTemplate,
-  Info,
-  CheckCircle,
-  X,
-  Eye,
   List,
+  Eye,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -53,12 +50,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -81,6 +72,8 @@ import { ordersService, Order } from '@/services/ordersService'
 import { useSiteSettings } from '@/hooks/use-site-settings'
 import { DELIVERABLE_CATEGORIES } from '@/lib/plan-constants'
 import { PlansManager } from '@/components/admin/PlansManager'
+import { OrderChecklist } from '@/components/admin/OrderChecklist'
+import { DeadlineTracker } from '@/components/admin/DeadlineTracker'
 
 // Constants for Routes
 const VALID_ROUTES = [
@@ -259,9 +252,21 @@ export default function Admin() {
   // --- ORDER ACTIONS ---
   const handleUpdateOrderStatus = async (status: string) => {
     if (!selectedOrder) return
-    await ordersService.updateOrderStatus(selectedOrder.id, status)
-    setSelectedOrder({ ...selectedOrder, status })
-    loadData()
+
+    // Pass current order to calculate side effects (timestamps)
+    const { data: updatedOrder } = await ordersService.updateOrderStatus(
+      selectedOrder.id,
+      status,
+      selectedOrder,
+    )
+
+    if (updatedOrder) {
+      setSelectedOrder(updatedOrder)
+      // Update the list view as well
+      setOrders(
+        orders.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)),
+      )
+    }
     toast({ title: 'Status atualizado' })
   }
 
@@ -475,6 +480,7 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
+          {/* ... existing tabs content ... */}
           <TabsContent value="projects">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
@@ -524,7 +530,6 @@ export default function Admin() {
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
-
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button
@@ -541,9 +546,7 @@ export default function Admin() {
                                     Excluir Projeto?
                                   </AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Esta ação não pode ser desfeita. Isso
-                                    excluirá permanentemente o projeto e todas
-                                    as imagens associadas.
+                                    Esta ação não pode ser desfeita.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -715,6 +718,7 @@ export default function Admin() {
                       <CardTitle>Hero Section (Topo)</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      {/* ... existing fields ... */}
                       <div className="space-y-2">
                         <Label>Imagem de Fundo</Label>
                         <div className="flex gap-4">
@@ -921,12 +925,6 @@ export default function Admin() {
                       </span>
                     </p>
                     <p>
-                      <strong>Internal ID:</strong>{' '}
-                      <span className="font-mono text-xs">
-                        {selectedOrder.id}
-                      </span>
-                    </p>
-                    <p>
                       <strong>Cliente:</strong> {selectedOrder.client_name}
                     </p>
                     <p>
@@ -966,6 +964,9 @@ export default function Admin() {
                     </Select>
                   </div>
 
+                  {/* Deadline Tracker Component */}
+                  <DeadlineTracker order={selectedOrder} />
+
                   <div>
                     <h4 className="font-bold mb-2">Fotos Enviadas</h4>
                     <div className="grid grid-cols-3 gap-2">
@@ -987,58 +988,12 @@ export default function Admin() {
                 </div>
 
                 <div className="space-y-6">
+                  {/* Replaced old checklist with persistent checklist */}
+                  <OrderChecklist order={selectedOrder} />
+
                   <div className="border rounded-lg p-4">
-                    <div className="flex justify-between items-center mb-4">
-                      <h4 className="font-bold">Checklist de Entrega</h4>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger>
-                            <Info className="h-4 w-4 text-muted-foreground" />
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            Itens marcados já possuem arquivos enviados.
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-
-                    <div className="space-y-2 mb-6">
-                      {/* Use snapshot features or fallback for checklist */}
-                      {getOrderPlanDetails(selectedOrder).checklist.map(
-                        (item: string) => {
-                          const fileCount =
-                            selectedOrder.deliverables?.filter(
-                              (d) => d.title === item,
-                            ).length || 0
-                          const isComplete = fileCount > 0
-
-                          return (
-                            <div
-                              key={item}
-                              className="flex items-center gap-2 text-sm"
-                            >
-                              {isComplete ? (
-                                <CheckCircle className="h-4 w-4 text-green-500" />
-                              ) : (
-                                <div className="h-4 w-4 rounded-full border border-gray-300" />
-                              )}
-                              <span
-                                className={
-                                  isComplete
-                                    ? 'text-green-700 font-medium'
-                                    : 'text-gray-600'
-                                }
-                              >
-                                {item} {fileCount > 1 && `(${fileCount})`}
-                              </span>
-                            </div>
-                          )
-                        },
-                      )}
-                    </div>
-                    {/* ... rest of the modal ... */}
-                    <h4 className="font-bold mb-4 border-t pt-4">
-                      Upload de Arquivos
+                    <h4 className="font-bold mb-4">
+                      Upload de Arquivos (Entregáveis)
                     </h4>
                     <div className="space-y-3">
                       <div className="space-y-1">

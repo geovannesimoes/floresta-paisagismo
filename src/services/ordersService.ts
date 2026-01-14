@@ -1,5 +1,15 @@
 import { supabase } from '@/lib/supabase/client'
-import { Plan } from './plansService'
+import { PLAN_DETAILS, PlanName } from '@/lib/plan-constants'
+
+export interface OrderChecklistItem {
+  id: string
+  order_id: string
+  text: string
+  is_done: boolean
+  sort_order: number
+  created_at?: string
+  updated_at?: string
+}
 
 export interface Order {
   id: string
@@ -18,15 +28,21 @@ export interface Order {
   plan_id?: string
   plan_snapshot_name?: string
   plan_snapshot_price_cents?: number
-  plan_snapshot_features?: string[] // JSONB array stored as string[]
+  plan_snapshot_features?: string[]
 
   status: string
   created_at: string
+  updated_at: string
   price?: number
   asaas_checkout_id?: string
   asaas_checkout_url?: string
   asaas_status?: string
+
+  // Timestamps & Deadlines
   paid_at?: string
+  delivered_at?: string
+  delivery_deadline_days?: number
+
   photos?: OrderPhoto[]
   deliverables?: OrderDeliverable[]
   revisions?: RevisionRequest[]
@@ -67,7 +83,6 @@ interface CreateOrderParams {
   notes?: string
   plan: string
   status?: string
-  // Snapshot Data
   plan_id?: string
   plan_snapshot_name?: string
   plan_snapshot_price_cents?: number
@@ -76,7 +91,6 @@ interface CreateOrderParams {
 
 export const ordersService = {
   async createOrder(order: CreateOrderParams) {
-    // Uses RPC to bypass RLS and ensure secure creation
     const { data, error } = await supabase.rpc('create_order_and_return', {
       p_client_name: order.client_name,
       p_client_email: order.client_email,
@@ -87,7 +101,6 @@ export const ordersService = {
       p_preferences: order.preferences || null,
       p_notes: order.notes || null,
       p_plan: order.plan,
-      // Pass snapshot data to RPC
       p_plan_id: order.plan_id || null,
       p_plan_snapshot_name: order.plan_snapshot_name || null,
       p_plan_snapshot_price_cents: order.plan_snapshot_price_cents || null,
@@ -95,87 +108,8 @@ export const ordersService = {
     })
 
     if (error) return { data: null, error }
-
-    // RPC returns SETOF, so we get an array, take the first one
     const createdOrder = Array.isArray(data) ? data[0] : data
     return { data: createdOrder as Order, error: null }
-  },
-
-  async confirmPayment(orderId: string, orderCode: string, email: string) {
-    const { data, error } = await supabase.rpc('confirm_order_payment', {
-      p_order_id: orderId,
-      p_order_code: orderCode,
-      p_email: email,
-    })
-
-    if (error) return { data: null, error }
-
-    const updatedOrder = Array.isArray(data) ? data[0] : data
-    return { data: updatedOrder as Order, error: null }
-  },
-
-  async getClientOrder(email: string, code: string) {
-    const { data, error } = await supabase.rpc('get_client_order_details', {
-      p_email: email,
-      p_code: code,
-    })
-
-    if (error) return { data: null, error }
-    if (!data) return { data: null, error: 'Pedido não encontrado' }
-
-    return { data: data as Order, error: null }
-  },
-
-  async getOrderByCode(code: string) {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('code', code)
-
-    if (error) return { data: null, error }
-    return { data: data as Order[], error: null }
-  },
-
-  async getOrdersByEmail(email: string) {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .ilike('client_email', email)
-      .order('created_at', { ascending: false })
-
-    if (error) return { data: null, error }
-    if (!data || data.length === 0) return { data: [], error: null }
-
-    return { data: data as Order[], error: null }
-  },
-
-  async getOrderWithRelations(id: string) {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('id', id)
-      .single()
-
-    if (error) return { data: null, error }
-    return this._fetchOrderRelations(data as Order)
-  },
-
-  async _fetchOrderRelations(order: Order) {
-    const [photos, deliverables, revisions] = await Promise.all([
-      supabase.from('order_photos').select('*').eq('order_id', order.id),
-      supabase.from('order_deliverables').select('*').eq('order_id', order.id),
-      supabase.from('revision_requests').select('*').eq('order_id', order.id),
-    ])
-
-    return {
-      data: {
-        ...order,
-        photos: photos.data || [],
-        deliverables: deliverables.data || [],
-        revisions: revisions.data || [],
-      } as Order,
-      error: null,
-    }
   },
 
   async getOrders() {
@@ -188,15 +122,91 @@ export const ordersService = {
     return { data: data as Order[], error }
   },
 
-  async updateOrderStatus(id: string, status: string) {
+  async updateOrderStatus(id: string, status: string, currentOrder: Order) {
+    const updates: any = { status, updated_at: new Date().toISOString() }
+
+    // Logic for Recibido (Paid)
+    if (status.includes('Recebido') && !currentOrder.paid_at) {
+      updates.paid_at = new Date().toISOString()
+
+      // Determine deadline based on plan
+      const planName = currentOrder.plan_snapshot_name || currentOrder.plan
+      if (planName) {
+        // Jasmim = 3 days, others = 7 days
+        updates.delivery_deadline_days = planName.includes('Jasmim') ? 3 : 7
+      }
+    }
+
+    // Logic for Enviado (Delivered)
+    if (status.includes('Enviado') && !currentOrder.delivered_at) {
+      updates.delivered_at = new Date().toISOString()
+    }
+
     const { data, error } = await supabase
       .from('orders')
-      .update({ status, updated_at: new Date().toISOString() })
+      .update(updates)
       .eq('id', id)
       .select()
       .single()
+
     return { data: data as Order, error }
   },
+
+  // --- Checklist Methods ---
+
+  async getChecklist(orderId: string) {
+    const { data, error } = await supabase
+      .from('order_checklist_items')
+      .select('*')
+      .eq('order_id', orderId)
+      .order('sort_order', { ascending: true })
+
+    return { data: data as OrderChecklistItem[], error }
+  },
+
+  async initChecklist(orderId: string, planName: string) {
+    // Determine items based on plan
+    // Using simple includes check to match plan names like "Projeto Lírio" or just "Lírio"
+    let items: string[] = []
+
+    if (planName.includes('Jasmim')) {
+      items = PLAN_DETAILS['Jasmim'].checklist as unknown as string[]
+    } else if (planName.includes('Ipê')) {
+      items = PLAN_DETAILS['Ipê'].checklist as unknown as string[]
+    } else {
+      // Default to Lírio or Fallback
+      items = PLAN_DETAILS['Lírio'].checklist as unknown as string[]
+    }
+
+    if (!items || items.length === 0) return { data: [], error: null }
+
+    const checklistItems = items.map((text, index) => ({
+      order_id: orderId,
+      text,
+      is_done: false,
+      sort_order: index + 1,
+    }))
+
+    const { data, error } = await supabase
+      .from('order_checklist_items')
+      .insert(checklistItems)
+      .select()
+
+    return { data: data as OrderChecklistItem[], error }
+  },
+
+  async toggleChecklistItem(itemId: string, isDone: boolean) {
+    const { data, error } = await supabase
+      .from('order_checklist_items')
+      .update({ is_done: isDone, updated_at: new Date().toISOString() })
+      .eq('id', itemId)
+      .select()
+      .single()
+
+    return { data, error }
+  },
+
+  // --- Asset Methods ---
 
   async uploadOrderPhoto(orderId: string, file: File) {
     const fileExt = file.name.split('.').pop()
@@ -271,14 +281,5 @@ export const ordersService = {
       .delete()
       .eq('id', id)
     return { error }
-  },
-
-  async requestRevision(orderId: string, description: string) {
-    const { data, error } = await supabase
-      .from('revision_requests')
-      .insert({ order_id: orderId, description })
-      .select()
-      .single()
-    return { data, error }
   },
 }
