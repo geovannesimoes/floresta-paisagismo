@@ -8,14 +8,6 @@ Deno.serve(async (req: Request) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  // 2. Only allow POST
-  if (req.method !== 'POST') {
-    return new Response('Method not allowed', {
-      status: 405,
-      headers: corsHeaders,
-    })
-  }
-
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -23,9 +15,9 @@ Deno.serve(async (req: Request) => {
     if (!supabaseUrl || !supabaseServiceKey) {
       console.error('Missing Supabase environment variables')
       return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
+        JSON.stringify({ ok: true, error: 'Configuration Error' }),
         {
-          status: 500,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         },
       )
@@ -33,93 +25,97 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const event = await req.json()
-    const { event: eventType, payment } = event
-
-    console.log(`Received Webhook: ${eventType}`, payment?.id)
-
-    if (!payment || !payment.id) {
-      return new Response(JSON.stringify({ error: 'Invalid payload' }), {
-        status: 200, // Return 200 to avoid retries on bad payload
+    // Parse Body
+    let body
+    try {
+      body = await req.json()
+    } catch (e) {
+      console.error('Error parsing JSON body:', e)
+      return new Response(JSON.stringify({ ok: true, error: 'Invalid JSON' }), {
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    // Determine New Status based on Event Type
-    let newStatus = ''
-    const updateData: any = {
-      asaas_status: eventType,
-      asaas_payment_id: payment.id,
-      asaas_webhook_last_event_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+    const { event, payment } = body
+    const checkoutId = body.checkout?.id || null
+
+    // Logging per AC
+    console.log('Received Webhook:', {
+      event,
+      paymentId: payment?.id,
+      checkoutId,
+      externalReference: payment?.externalReference,
+    })
+
+    if (!payment || !payment.id) {
+      console.warn('Invalid payload: missing payment information')
+      return new Response(
+        JSON.stringify({ ok: true, warning: 'Invalid payload' }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      )
     }
 
-    switch (eventType) {
-      case 'PAYMENT_CONFIRMED':
+    // Determine New Status based on AC
+    let newStatus: string | null = null
+    let paymentStatus: string | null = null
+
+    switch (event) {
+      case 'PAYMENT_CREATED':
+        newStatus = 'aguardando_pagamento'
+        paymentStatus = 'pending'
+        break
+
       case 'PAYMENT_RECEIVED':
-      case 'CHECKOUT_PAID':
-        newStatus = 'Recebido'
-        updateData.status = 'Recebido'
-        updateData.payment_status = 'paid'
-        updateData.paid_at = new Date().toISOString()
+      case 'PAYMENT_CONFIRMED':
+        newStatus = 'recebido'
+        paymentStatus = 'paid'
         break
 
       case 'PAYMENT_CANCELED':
-      case 'CHECKOUT_CANCELED':
-        newStatus = 'Cancelado'
-        updateData.status = 'Cancelado'
-        updateData.payment_status = 'canceled'
+        newStatus = 'cancelado'
+        paymentStatus = 'canceled'
         break
 
-      case 'PAYMENT_OVERDUE':
-      case 'CHECKOUT_EXPIRED':
-        newStatus = 'Expirado'
-        updateData.status = 'Expirado'
-        break
-
-      case 'PAYMENT_CREATED':
-      case 'CHECKOUT_CREATED':
-        newStatus = 'Aguardando Pagamento'
-        updateData.status = 'Aguardando Pagamento'
-        break
-
-      default:
-        // For other events, we just update tracking info (asaas_status, timestamp) but not the main order status
-        console.log(`Event ${eventType} received, updating metadata only.`)
+      // Additional events mapping for resilience
+      case 'CHECKOUT_PAID':
+        newStatus = 'recebido'
+        paymentStatus = 'paid'
         break
     }
 
     // Lookup Order
-    // Try by externalReference (code), then by asaas_checkout_id, then by asaas_payment_id
-
+    // 1. Try Code (externalReference) - Priority per AC
     let orderMatch = null
 
-    // 1. Try Code (externalReference)
     if (payment.externalReference) {
       const { data } = await supabase
         .from('orders')
-        .select('id, status')
+        .select('id, status, payment_status')
         .eq('code', payment.externalReference)
         .maybeSingle()
       orderMatch = data
     }
 
-    // 2. Try Checkout ID (if code didn't work)
+    // 2. Try Payment ID (Resilience)
     if (!orderMatch) {
       const { data } = await supabase
         .from('orders')
-        .select('id, status')
-        .eq('asaas_checkout_id', payment.id)
+        .select('id, status, payment_status')
+        .eq('asaas_payment_id', payment.id)
         .maybeSingle()
       orderMatch = data
     }
 
-    // 3. Try Payment ID (if still not found)
-    if (!orderMatch) {
+    // 3. Try Checkout ID (Resilience)
+    if (!orderMatch && checkoutId) {
       const { data } = await supabase
         .from('orders')
-        .select('id, status')
-        .eq('asaas_payment_id', payment.id)
+        .select('id, status, payment_status')
+        .eq('asaas_checkout_id', checkoutId)
         .maybeSingle()
       orderMatch = data
     }
@@ -128,9 +124,9 @@ Deno.serve(async (req: Request) => {
       console.warn(
         `Order not found for Payment ID: ${payment.id}, Ref: ${payment.externalReference}`,
       )
-      // Return 200 to acknowledge receipt and prevent Asaas from retrying
+      // Return 200 per AC
       return new Response(
-        JSON.stringify({ received: true, warning: 'Order match failed' }),
+        JSON.stringify({ ok: true, warning: 'Order not found' }),
         {
           status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -138,17 +134,34 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // Prevent overwriting 'Recebido' status with 'Expirado' or others (race conditions or late events)
-    if (
-      orderMatch.status === 'Recebido' &&
-      newStatus !== 'Recebido' &&
-      newStatus !== ''
-    ) {
-      console.log('Order already Paid, skipping status update to', newStatus)
-      // We still update metadata
-      delete updateData.status
-      delete updateData.payment_status
-      delete updateData.paid_at
+    // Prepare Update Data
+    const updateData: any = {
+      asaas_payment_id: payment.id,
+      asaas_webhook_last_event_at: new Date().toISOString(),
+      asaas_status: event,
+      updated_at: new Date().toISOString(),
+    }
+
+    // Apply Status Update logic
+    if (newStatus) {
+      // Prevent regression from 'recebido' to 'aguardando_pagamento' (Resilience)
+      const currentStatus = orderMatch.status?.toLowerCase() || ''
+      const currentPaymentStatus =
+        orderMatch.payment_status?.toLowerCase() || ''
+      const isPaid =
+        currentStatus === 'recebido' || currentPaymentStatus === 'paid'
+
+      if (isPaid && newStatus === 'aguardando_pagamento') {
+        console.log('Skipping status update: Order is already paid')
+      } else {
+        updateData.status = newStatus
+        if (paymentStatus) {
+          updateData.payment_status = paymentStatus
+        }
+        if (newStatus === 'recebido') {
+          updateData.paid_at = new Date().toISOString()
+        }
+      }
     }
 
     // Execute Update
@@ -159,20 +172,23 @@ Deno.serve(async (req: Request) => {
 
     if (updateError) {
       console.error('Error updating order:', updateError)
-      throw updateError
+      return new Response(
+        JSON.stringify({ ok: true, error: 'Database update failed' }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      )
     }
 
-    return new Response(
-      JSON.stringify({ received: true, orderId: orderMatch.id }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      },
-    )
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
   } catch (error: any) {
     console.error('Webhook Internal Error:', error)
-    // Return 200 to prevent retries on internal logic errors
-    return new Response(JSON.stringify({ error: error.message }), {
+    // Fail-safe response for any internal error
+    return new Response(JSON.stringify({ ok: true, error: error.message }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
