@@ -52,12 +52,12 @@ CREATE POLICY "Allow admin all on plan features" ON public.plan_features FOR ALL
 
 -- Trigger to update updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = now();
     RETURN NEW;
 END;
-$ language 'plpgsql';
+$$ language 'plpgsql';
 
 DROP TRIGGER IF EXISTS update_plans_updated_at ON public.plans;
 CREATE TRIGGER update_plans_updated_at BEFORE UPDATE ON public.plans FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
@@ -66,7 +66,7 @@ DROP TRIGGER IF EXISTS update_plan_features_updated_at ON public.plan_features;
 CREATE TRIGGER update_plan_features_updated_at BEFORE UPDATE ON public.plan_features FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 
 -- Seed Data (Idempotent)
-DO $
+DO $$
 DECLARE
   lirio_id UUID;
   ipe_id UUID;
@@ -115,7 +115,7 @@ BEGIN
   (jasmim_id, 'Guia detalhado de plantio', 4),
   (jasmim_id, 'Prioridade na entrega', 5),
   (jasmim_id, 'Prazo: até 3 dias úteis', 6);
-END $;
+END $$;
 
 -- Update create_order_and_return RPC to accept snapshot fields
 DROP FUNCTION IF EXISTS create_order_and_return(text, text, text, text, text, text, text, text, text);
@@ -168,4 +168,3 @@ END;
 $func$;
 
 GRANT EXECUTE ON FUNCTION create_order_and_return(text, text, text, text, text, text, text, text, text, uuid, text, integer, jsonb) TO anon, authenticated, service_role;
-

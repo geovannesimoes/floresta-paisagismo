@@ -79,10 +79,7 @@ import {
 import { siteSettingsService } from '@/services/siteSettingsService'
 import { ordersService, Order } from '@/services/ordersService'
 import { useSiteSettings } from '@/hooks/use-site-settings'
-import {
-  DELIVERABLE_CATEGORIES,
-  PlanName,
-} from '@/lib/plan-constants'
+import { DELIVERABLE_CATEGORIES } from '@/lib/plan-constants'
 import { PlansManager } from '@/components/admin/PlansManager'
 
 // Constants for Routes
@@ -332,17 +329,20 @@ export default function Admin() {
   // --- HELPERS ---
   const getOrderPlanDetails = (order: Order) => {
     // Prefer snapshot data if available
-    if (order.plan_snapshot_price_cents !== undefined && order.plan_snapshot_name) {
-       return {
-           price: (order.plan_snapshot_price_cents / 100).toFixed(2),
-           checklist: order.plan_snapshot_features || DELIVERABLE_CATEGORIES
-       }
+    if (
+      order.plan_snapshot_price_cents !== undefined &&
+      order.plan_snapshot_name
+    ) {
+      return {
+        price: (order.plan_snapshot_price_cents / 100).toFixed(2),
+        checklist: order.plan_snapshot_features || DELIVERABLE_CATEGORIES,
+      }
     }
-    
+
     // Fallback to legacy static or just display nothing specialized
     return {
-        price: order.price ? order.price.toFixed(2) : '?',
-        checklist: DELIVERABLE_CATEGORIES
+      price: order.price ? order.price.toFixed(2) : '?',
+      checklist: DELIVERABLE_CATEGORIES,
     }
   }
 
@@ -566,7 +566,8 @@ export default function Admin() {
                   </TableBody>
                 </Table>
               </CardContent>
-            </TabsContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="settings">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -583,7 +584,8 @@ export default function Admin() {
                     href="#plans"
                     className="flex items-center px-3 py-2 text-sm font-medium rounded-md bg-white text-gray-900 hover:bg-gray-50 border"
                   >
-                    <List className="mr-3 h-5 w-5 text-gray-500" /> Planos & Preços
+                    <List className="mr-3 h-5 w-5 text-gray-500" /> Planos &
+                    Preços
                   </a>
                   <a
                     href="#hero"
@@ -703,7 +705,7 @@ export default function Admin() {
 
                 {/* Plans Section */}
                 <section id="plans" className="scroll-mt-20">
-                   <PlansManager />
+                  <PlansManager />
                 </section>
 
                 {/* Hero Section */}
@@ -931,8 +933,9 @@ export default function Admin() {
                       <strong>Email:</strong> {selectedOrder.client_email}
                     </p>
                     <p>
-                      <strong>Plano:</strong> Projeto {selectedOrder.plan_snapshot_name || selectedOrder.plan} — R${' '}
-                      {getOrderPlanDetails(selectedOrder).price}
+                      <strong>Plano:</strong> Projeto{' '}
+                      {selectedOrder.plan_snapshot_name || selectedOrder.plan} —
+                      R$ {getOrderPlanDetails(selectedOrder).price}
                     </p>
                     <p>
                       <strong>Imóvel:</strong> {selectedOrder.property_type}
@@ -1001,38 +1004,40 @@ export default function Admin() {
 
                     <div className="space-y-2 mb-6">
                       {/* Use snapshot features or fallback for checklist */}
-                      {getOrderPlanDetails(selectedOrder).checklist.map((item: string) => {
-                        const fileCount =
-                          selectedOrder.deliverables?.filter(
-                            (d) => d.title === item,
-                          ).length || 0
-                        const isComplete = fileCount > 0
+                      {getOrderPlanDetails(selectedOrder).checklist.map(
+                        (item: string) => {
+                          const fileCount =
+                            selectedOrder.deliverables?.filter(
+                              (d) => d.title === item,
+                            ).length || 0
+                          const isComplete = fileCount > 0
 
-                        return (
-                          <div
-                            key={item}
-                            className="flex items-center gap-2 text-sm"
-                          >
-                            {isComplete ? (
-                              <CheckCircle className="h-4 w-4 text-green-500" />
-                            ) : (
-                              <div className="h-4 w-4 rounded-full border border-gray-300" />
-                            )}
-                            <span
-                              className={
-                                isComplete
-                                  ? 'text-green-700 font-medium'
-                                  : 'text-gray-600'
-                              }
+                          return (
+                            <div
+                              key={item}
+                              className="flex items-center gap-2 text-sm"
                             >
-                              {item} {fileCount > 1 && `(${fileCount})`}
-                            </span>
-                          </div>
-                        )
-                      })}
+                              {isComplete ? (
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <div className="h-4 w-4 rounded-full border border-gray-300" />
+                              )}
+                              <span
+                                className={
+                                  isComplete
+                                    ? 'text-green-700 font-medium'
+                                    : 'text-gray-600'
+                                }
+                              >
+                                {item} {fileCount > 1 && `(${fileCount})`}
+                              </span>
+                            </div>
+                          )
+                        },
+                      )}
                     </div>
                     {/* ... rest of the modal ... */}
-                     <h4 className="font-bold mb-4 border-t pt-4">
+                    <h4 className="font-bold mb-4 border-t pt-4">
                       Upload de Arquivos
                     </h4>
                     <div className="space-y-3">
@@ -1259,4 +1264,3 @@ export default function Admin() {
     </div>
   )
 }
-
