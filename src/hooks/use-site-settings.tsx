@@ -9,7 +9,7 @@ import {
   siteSettingsService,
   SiteSettings,
 } from '@/services/siteSettingsService'
-import { hexToHsl } from '@/lib/utils'
+import { applyTheme } from '@/lib/utils'
 
 interface SiteSettingsContextType {
   settings: SiteSettings | null
@@ -32,7 +32,10 @@ export const useSiteSettings = () => {
 }
 
 export const SiteSettingsProvider = ({ children }: { children: ReactNode }) => {
-  const [settings, setSettings] = useState<SiteSettings | null>(null)
+  // Initialize with cached settings if available to prevent flicker
+  const [settings, setSettings] = useState<SiteSettings | null>(() => {
+    return siteSettingsService.getCachedSettings()
+  })
   const [loading, setLoading] = useState(true)
 
   const fetchSettings = async () => {
@@ -40,6 +43,7 @@ export const SiteSettingsProvider = ({ children }: { children: ReactNode }) => {
       const { data } = await siteSettingsService.getSettings()
       if (data) {
         setSettings(data)
+        siteSettingsService.cacheSettings(data)
         applyTheme(data)
       }
     } catch (error) {
@@ -49,29 +53,17 @@ export const SiteSettingsProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  const applyTheme = (settings: SiteSettings) => {
-    const root = document.documentElement
-
-    if (settings.primary_color) {
-      const hsl = hexToHsl(settings.primary_color)
-      if (hsl) {
-        root.style.setProperty('--primary', hsl)
-        // Also update ring to match primary
-        root.style.setProperty('--ring', hsl)
-      }
-    }
-
-    if (settings.accent_color) {
-      const hsl = hexToHsl(settings.accent_color)
-      if (hsl) {
-        root.style.setProperty('--accent', hsl)
-      }
-    }
-  }
-
+  // Effect to re-fetch/validate even if we have cache
   useEffect(() => {
     fetchSettings()
   }, [])
+
+  // Apply theme if settings exist initially (double check)
+  useEffect(() => {
+    if (settings) {
+      applyTheme(settings)
+    }
+  }, [settings])
 
   return (
     <SiteSettingsContext.Provider

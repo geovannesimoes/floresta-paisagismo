@@ -156,7 +156,14 @@ export default function Admin() {
     if (!settings?.id) return
     setLoading(true)
     try {
-      await siteSettingsService.updateSettings(settings.id, settingsForm)
+      const { data } = await siteSettingsService.updateSettings(
+        settings.id,
+        settingsForm,
+      )
+      if (data) {
+        // Update local cache immediately
+        siteSettingsService.cacheSettings(data)
+      }
       refreshSettings()
       toast({ title: 'Configurações salvas com sucesso!' })
     } catch (e) {

@@ -1,6 +1,7 @@
-/* General utility functions (exposes cn, hexToHsl, formatCpfCnpj, formatPhone) */
+/* General utility functions (exposes cn, hexToHsl, formatCpfCnpj, formatPhone, applyTheme) */
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import type { SiteSettings } from '@/services/siteSettingsService'
 
 /**
  * Merges multiple class names into a single string
@@ -63,6 +64,30 @@ export function hexToHsl(hex: string): string | null {
   l = Math.round(l * 100)
 
   return `${h} ${s}% ${l}%`
+}
+
+/**
+ * Applies site settings to CSS variables
+ * @param settings - Site settings object
+ */
+export function applyTheme(settings: SiteSettings) {
+  const root = document.documentElement
+
+  if (settings.primary_color) {
+    const hsl = hexToHsl(settings.primary_color)
+    if (hsl) {
+      root.style.setProperty('--primary', hsl)
+      // Also update ring to match primary
+      root.style.setProperty('--ring', hsl)
+    }
+  }
+
+  if (settings.accent_color) {
+    const hsl = hexToHsl(settings.accent_color)
+    if (hsl) {
+      root.style.setProperty('--accent', hsl)
+    }
+  }
 }
 
 /**

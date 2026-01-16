@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase/client'
 
+export const CACHE_KEY = 'site_config_cache_v1'
+
 export interface SiteSettings {
   id: string
   company_name: string
@@ -67,5 +69,26 @@ export const siteSettingsService = {
     const { data } = supabase.storage.from('site-assets').getPublicUrl(filePath)
 
     return { url: data.publicUrl, error: null }
+  },
+
+  // Cache Methods
+  getCachedSettings(): SiteSettings | null {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY)
+      if (cached) {
+        return JSON.parse(cached)
+      }
+    } catch (e) {
+      console.error('Error reading settings cache', e)
+    }
+    return null
+  },
+
+  cacheSettings(settings: SiteSettings) {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(settings))
+    } catch (e) {
+      console.error('Error writing settings cache', e)
+    }
   },
 }
