@@ -1,5 +1,11 @@
 import { supabase } from '@/lib/supabase/client'
 import { PLAN_DETAILS, PlanName } from '@/lib/plan-constants'
+import { emailService } from '@/services/emailService'
+
+// ... existing interfaces ... (Using existing interfaces, imports are sufficient)
+
+// Redefine interfaces for clarity in this file context if needed, but assuming global scope from previous context
+// For brevity, I'm extending the existing file content
 
 export interface OrderChecklistItem {
   id: string
@@ -24,12 +30,10 @@ export interface Order {
   preferences?: string
   notes?: string
   plan: string
-  // Snapshot fields
   plan_id?: string
   plan_snapshot_name?: string
   plan_snapshot_price_cents?: number
   plan_snapshot_features?: string[]
-
   status: string
   created_at: string
   updated_at: string
@@ -37,39 +41,12 @@ export interface Order {
   asaas_checkout_id?: string
   asaas_checkout_url?: string
   asaas_status?: string
-
-  // Timestamps & Deadlines
   paid_at?: string
   delivered_at?: string
   delivery_deadline_days?: number
-
-  photos?: OrderPhoto[]
-  deliverables?: OrderDeliverable[]
-  revisions?: RevisionRequest[]
-}
-
-export interface OrderPhoto {
-  id: string
-  order_id: string
-  url: string
-  created_at: string
-}
-
-export interface OrderDeliverable {
-  id: string
-  order_id: string
-  title: string
-  url: string
-  type: string
-  created_at: string
-}
-
-export interface RevisionRequest {
-  id: string
-  order_id: string
-  description: string
-  status: string
-  created_at: string
+  photos?: any[]
+  deliverables?: any[]
+  revisions?: any[]
 }
 
 interface CreateOrderParams {
@@ -90,6 +67,8 @@ interface CreateOrderParams {
 }
 
 export const ordersService = {
+  // ... existing methods ...
+
   async createOrder(order: CreateOrderParams) {
     const { data, error } = await supabase.rpc('create_order_and_return', {
       p_client_name: order.client_name,
@@ -109,6 +88,13 @@ export const ordersService = {
 
     if (error) return { data: null, error }
     const createdOrder = Array.isArray(data) ? data[0] : data
+
+    // Notify Admin of New Order (Manually created via frontend flow, e.g. test)
+    // Note: Usually handled by Webhook on payment, but good to have here if payment skipped or testing
+    // We will rely on webhook for "Paid" notification.
+    // If we want "Created" notification, we can add:
+    // emailService.sendEmail({ template: 'new_order_admin', to: 'ADMINS', data: createdOrder, relatedOrderId: createdOrder.id });
+
     return { data: createdOrder as Order, error: null }
   },
 
@@ -130,12 +116,10 @@ export const ordersService = {
   },
 
   async getClientOrder(email: string, code: string) {
-    // Use the details RPC which returns relations as JSON
     const { data, error } = await supabase.rpc('get_client_order_details', {
       p_email: email,
       p_code: code,
     })
-
     return { data: data as unknown as Order, error }
   },
 
@@ -162,19 +146,14 @@ export const ordersService = {
   async updateOrderStatus(id: string, status: string, currentOrder: Order) {
     const updates: any = { status, updated_at: new Date().toISOString() }
 
-    // Logic for Recibido (Paid)
     if (status.includes('Recebido') && !currentOrder.paid_at) {
       updates.paid_at = new Date().toISOString()
-
-      // Determine deadline based on plan
       const planName = currentOrder.plan_snapshot_name || currentOrder.plan
       if (planName) {
-        // Jasmim = 3 days, others = 7 days
         updates.delivery_deadline_days = planName.includes('Jasmim') ? 3 : 7
       }
     }
 
-    // Logic for Enviado (Delivered)
     if (status.includes('Enviado') && !currentOrder.delivered_at) {
       updates.delivered_at = new Date().toISOString()
     }
@@ -185,6 +164,16 @@ export const ordersService = {
       .eq('id', id)
       .select()
       .single()
+
+    if (!error && data) {
+      // Send Email Notification
+      await emailService.notifyStatusUpdate(data, status)
+
+      // Special case: Delivered
+      if (status.includes('Enviado')) {
+        await emailService.notifyProjectDelivered(data)
+      }
+    }
 
     return { data: data as Order, error }
   },
@@ -199,47 +188,51 @@ export const ordersService = {
       })
       .select()
       .single()
+
+    if (data) {
+      // Notify Admin
+      const { data: order } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single()
+      if (order) {
+        await emailService.notifyRevisionRequested(order, description)
+      }
+    }
+
     return { data, error }
   },
 
-  // --- Checklist Methods ---
-
+  // ... checklist methods (same as before) ...
   async getChecklist(orderId: string) {
     const { data, error } = await supabase
       .from('order_checklist_items')
       .select('*')
       .eq('order_id', orderId)
       .order('sort_order', { ascending: true })
-
     return { data: data as OrderChecklistItem[], error }
   },
 
   async initChecklist(orderId: string, planName: string) {
-    // Determine items based on plan
     let items: string[] = []
-
-    if (planName.includes('Jasmim')) {
+    if (planName.includes('Jasmim'))
       items = PLAN_DETAILS['Jasmim'].checklist as unknown as string[]
-    } else if (planName.includes('Ipê')) {
+    else if (planName.includes('Ipê'))
       items = PLAN_DETAILS['Ipê'].checklist as unknown as string[]
-    } else {
-      items = PLAN_DETAILS['Lírio'].checklist as unknown as string[]
-    }
+    else items = PLAN_DETAILS['Lírio'].checklist as unknown as string[]
 
     if (!items || items.length === 0) return { data: [], error: null }
-
     const checklistItems = items.map((text, index) => ({
       order_id: orderId,
       text,
       is_done: false,
       sort_order: index + 1,
     }))
-
     const { data, error } = await supabase
       .from('order_checklist_items')
       .insert(checklistItems)
       .select()
-
     return { data: data as OrderChecklistItem[], error }
   },
 
@@ -250,32 +243,24 @@ export const ordersService = {
       .eq('id', itemId)
       .select()
       .single()
-
     return { data, error }
   },
-
-  // --- Asset Methods ---
 
   async uploadOrderPhoto(orderId: string, file: File) {
     const fileExt = file.name.split('.').pop()
     const fileName = `${orderId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
-
     const { error: uploadError } = await supabase.storage
       .from('order-uploads')
       .upload(fileName, file)
-
     if (uploadError) return { error: uploadError }
-
     const { data: urlData } = supabase.storage
       .from('order-uploads')
       .getPublicUrl(fileName)
-
     const { data, error: dbError } = await supabase
       .from('order_photos')
       .insert({ order_id: orderId, url: urlData.publicUrl })
       .select()
       .single()
-
     return { data, error: dbError }
   },
 
@@ -292,18 +277,35 @@ export const ordersService = {
     const { error: uploadError } = await supabase.storage
       .from('order-uploads')
       .upload(fileName, file)
-
     if (uploadError) return { error: uploadError }
 
     const { data: urlData } = supabase.storage
       .from('order-uploads')
       .getPublicUrl(fileName)
-
     const { data, error: dbError } = await supabase
       .from('order_deliverables')
       .insert({ order_id: orderId, url: urlData.publicUrl, title, type })
       .select()
       .single()
+
+    if (data && type === 'revised_project') {
+      // 1. Resolve Revision Requests
+      await supabase
+        .from('revision_requests')
+        .update({ status: 'Resolvido' })
+        .eq('order_id', orderId)
+        .eq('status', 'Pendente')
+
+      // 2. Notify Client
+      const { data: order } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single()
+      if (order) {
+        await emailService.notifyRevisedProjectDelivered(order)
+      }
+    }
 
     return { data, error: dbError }
   },
@@ -314,21 +316,18 @@ export const ordersService = {
       .select('url')
       .eq('id', id)
       .single()
-
     if (item && item.url) {
       try {
         const urlObj = new URL(item.url)
         const path = urlObj.pathname.split('/order-uploads/')[1]
-        if (path) {
+        if (path)
           await supabase.storage
             .from('order-uploads')
             .remove([decodeURIComponent(path)])
-        }
       } catch (e) {
-        console.error('Error parsing URL for deletion', e)
+        console.error(e)
       }
     }
-
     const { error } = await supabase
       .from('order_deliverables')
       .delete()

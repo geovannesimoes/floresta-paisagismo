@@ -80,6 +80,7 @@ import { DELIVERABLE_CATEGORIES } from '@/lib/plan-constants'
 import { PlansManager } from '@/components/admin/PlansManager'
 import { OrderChecklist } from '@/components/admin/OrderChecklist'
 import { DeadlineTracker } from '@/components/admin/DeadlineTracker'
+import { NotificationSettings } from '@/components/admin/NotificationSettings'
 
 // Constants for Routes
 const VALID_ROUTES = [
@@ -132,12 +133,16 @@ export default function Admin() {
   const [revisedTitle, setRevisedTitle] = useState('Projeto Revisado')
 
   useEffect(() => {
-    // Ensuring user session is ready before loading data
-    if (user && !authLoading) {
-      loadData()
-    } else if (!user && !authLoading) {
+    // Wait for auth loading to complete
+    if (authLoading) return
+
+    if (!user) {
       navigate('/admin/login')
+      return
     }
+
+    // Load data only if authenticated
+    loadData()
   }, [user, authLoading, navigate])
 
   useEffect(() => {
@@ -159,11 +164,9 @@ export default function Admin() {
 
   const refreshSelectedOrder = async (orderId: string) => {
     try {
-      // Full refetch as requested in user story
       const { data } = await ordersService.getOrderWithRelations(orderId)
       if (data) {
         setSelectedOrder(data)
-        // Also update the main list to reflect any status/cache changes
         setOrders((prev) => prev.map((o) => (o.id === orderId ? data : o)))
       }
     } catch (e) {
@@ -186,7 +189,6 @@ export default function Admin() {
         settingsForm,
       )
       if (data) {
-        // Update local cache immediately
         siteSettingsService.cacheSettings(data)
       }
       refreshSettings()
@@ -297,7 +299,7 @@ export default function Admin() {
     if (updatedOrder) {
       await refreshSelectedOrder(updatedOrder.id)
     }
-    toast({ title: 'Status atualizado' })
+    toast({ title: 'Status atualizado e cliente notificado' })
   }
 
   const handleUploadDeliverables = async () => {
@@ -323,7 +325,6 @@ export default function Admin() {
       const successfulUploads = results.filter((r) => r.data)
 
       if (successfulUploads.length > 0) {
-        // Full refetch to ensure UI is synchronized
         await refreshSelectedOrder(selectedOrder.id)
 
         toast({
@@ -333,7 +334,6 @@ export default function Admin() {
         setDeliverableCategory('')
         setDeliverableCustomTitle('')
 
-        // Automated Checklist marking logic
         const { data: checklist } = await ordersService.getChecklist(
           selectedOrder.id,
         )
@@ -371,7 +371,7 @@ export default function Admin() {
       if (error) throw error
 
       await refreshSelectedOrder(selectedOrder.id)
-      toast({ title: 'Projeto revisado enviado!' })
+      toast({ title: 'Projeto revisado enviado e solicitação resolvida!' })
       setRevisedFile(null)
       setRevisedTitle('Projeto Revisado')
     } catch (e) {
@@ -394,7 +394,6 @@ export default function Admin() {
     }
   }
 
-  // --- HELPERS ---
   const getOrderPlanDetails = (order: Order) => {
     if (
       order.plan_snapshot_price_cents !== undefined &&
@@ -578,7 +577,6 @@ export default function Admin() {
                               size="sm"
                               variant="ghost"
                               onClick={() => {
-                                // Full fetch on open to ensure latest data
                                 refreshSelectedOrder(order.id)
                                 setDeliverableFiles([])
                                 setDeliverableCategory('')
@@ -597,7 +595,6 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
-          {/* ... existing tabs content ... */}
           <TabsContent value="projects">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
@@ -690,7 +687,6 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="settings">
-            {/* Same settings content */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               <div className="lg:col-span-1">
                 <nav className="space-y-1" aria-label="Settings sections">
@@ -700,6 +696,12 @@ export default function Admin() {
                   >
                     <Palette className="mr-3 h-5 w-5 text-gray-500" /> Cores &
                     Identidade
+                  </a>
+                  <a
+                    href="#notifications"
+                    className="flex items-center px-3 py-2 text-sm font-medium rounded-md bg-white text-gray-900 hover:bg-gray-50 border"
+                  >
+                    <Mail className="mr-3 h-5 w-5 text-gray-500" /> Notificações
                   </a>
                   <a
                     href="#plans"
@@ -824,6 +826,11 @@ export default function Admin() {
                   </Card>
                 </section>
 
+                {/* Notifications Section */}
+                <section id="notifications" className="scroll-mt-20">
+                  <NotificationSettings />
+                </section>
+
                 {/* Plans Section */}
                 <section id="plans" className="scroll-mt-20">
                   <PlansManager />
@@ -836,7 +843,6 @@ export default function Admin() {
                       <CardTitle>Hero Section (Topo)</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {/* ... existing fields ... */}
                       <div className="space-y-2">
                         <Label>Imagem de Fundo</Label>
                         <div className="flex gap-4">
@@ -1097,7 +1103,6 @@ export default function Admin() {
                   {/* Deadline Tracker Component */}
                   <DeadlineTracker order={selectedOrder} />
 
-                  {/* Always Visible Photos - Per User Story 6 */}
                   <div>
                     <h4 className="font-bold mb-2">Fotos Enviadas</h4>
                     <div className="grid grid-cols-3 gap-2">
@@ -1126,7 +1131,6 @@ export default function Admin() {
                 </div>
 
                 <div className="space-y-6">
-                  {/* Replaced old checklist with persistent checklist */}
                   <OrderChecklist
                     order={selectedOrder}
                     refreshKey={checklistRefreshKey}
@@ -1172,7 +1176,7 @@ export default function Admin() {
                             ) : (
                               <>
                                 <Upload className="mr-2 h-4 w-4" /> Enviar
-                                Revisão
+                                Revisão e Resolver
                               </>
                             )}
                           </Button>
@@ -1236,7 +1240,6 @@ export default function Admin() {
                       </Button>
                     </div>
 
-                    {/* Always Visible Deliverables - Per User Story 6 + 1 */}
                     <div className="mt-4 space-y-2">
                       <h5 className="font-bold text-sm mt-6 mb-2">
                         Histórico de Envios
@@ -1310,7 +1313,17 @@ export default function Admin() {
                             key={rev.id}
                             className="text-sm mb-2 pb-2 border-b border-red-100 last:border-0"
                           >
-                            <p>{rev.description}</p>
+                            <div className="flex justify-between items-start">
+                              <p>{rev.description}</p>
+                              {rev.status === 'Resolvido' && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-green-600 bg-green-50 border-green-200"
+                                >
+                                  Resolvido
+                                </Badge>
+                              )}
+                            </div>
                             <span className="text-xs text-muted-foreground">
                               {new Date(rev.created_at).toLocaleString()}
                             </span>
@@ -1329,7 +1342,6 @@ export default function Admin() {
           open={isProjectDialogOpen}
           onOpenChange={setIsProjectDialogOpen}
         >
-          {/* ... existing project modal content ... */}
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Projeto</DialogTitle>
