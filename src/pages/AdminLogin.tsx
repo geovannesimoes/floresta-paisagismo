@@ -27,6 +27,7 @@ export default function AdminLogin() {
   const { settings } = useSiteSettings()
 
   useEffect(() => {
+    // Only navigate when user state is actually present
     if (user) {
       navigate('/admin')
     }
@@ -53,15 +54,14 @@ export default function AdminLogin() {
         title: 'Acesso concedido',
         description: 'Bem-vindo ao painel administrativo.',
       })
-      navigate('/admin')
+      // Navigation is handled by useEffect to ensure state is propagated
     } catch (error: any) {
       toast({
         title: 'Falha no login',
         description: error.message || 'Verifique suas credenciais.',
         variant: 'destructive',
       })
-    } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false) // Only reset on error
     }
   }
 

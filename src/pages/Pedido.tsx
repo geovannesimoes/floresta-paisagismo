@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   ShieldCheck,
   UploadCloud,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -69,6 +70,10 @@ export default function Pedido() {
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
   const [plan, setPlan] = useState<Plan | null>(null)
 
+  // Custom file state for previews and removal
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [previewUrls, setPreviewUrls] = useState<string[]>([])
+
   const planSlug = searchParams.get('plan')
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -116,6 +121,54 @@ export default function Pedido() {
     loadPlan()
   }, [planSlug, navigate, toast])
 
+  // Cleanup object URLs to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      previewUrls.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [previewUrls])
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles = Array.from(e.target.files)
+
+      // Accumulate files (up to reasonable limit handled by UI, e.g. 10 displayed)
+      // AC says "limited to a maximum of 10 images" for preview
+      const updatedFiles = [...selectedFiles, ...newFiles]
+      setSelectedFiles(updatedFiles)
+
+      // Update form value manually
+      form.setValue('photos', updatedFiles, { shouldValidate: true })
+
+      // Generate previews
+      const newPreviews = newFiles.map((file) => URL.createObjectURL(file))
+      setPreviewUrls((prev) => [...prev, ...newPreviews])
+
+      // Reset input value so same files can be selected again if needed (though we accumulate)
+      e.target.value = ''
+    }
+  }
+
+  const removeFile = (index: number) => {
+    const fileToRemove = selectedFiles[index]
+    const updatedFiles = selectedFiles.filter((_, i) => i !== index)
+
+    // Revoke URL for removed item
+    URL.revokeObjectURL(previewUrls[index])
+
+    const updatedPreviews = previewUrls.filter((_, i) => i !== index)
+
+    setSelectedFiles(updatedFiles)
+    setPreviewUrls(updatedPreviews)
+
+    // Update form validation
+    form.setValue(
+      'photos',
+      updatedFiles.length > 0 ? updatedFiles : undefined,
+      { shouldValidate: true },
+    )
+  }
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!plan) return
     setSubmitting(true)
@@ -137,12 +190,12 @@ export default function Pedido() {
       if (!order) throw new Error('Erro ao criar pedido')
 
       // 2. Upload Photos if order created successfully
-      if (values.photos && values.photos.length > 0) {
+      // Use state `selectedFiles` instead of `values.photos` directly as it might be FileList in schema but we use array
+      if (selectedFiles.length > 0) {
         setUploadingPhotos(true)
-        const files = Array.from(values.photos as FileList)
 
         // Upload concurrently
-        const uploadPromises = files.map((file) =>
+        const uploadPromises = selectedFiles.map((file) =>
           ordersService.uploadOrderPhoto(order.id, file),
         )
 
@@ -339,27 +392,69 @@ export default function Pedido() {
                         )}
                       />
 
-                      {/* Photo Upload Field - Restored */}
+                      {/* Photo Upload Field - Updated Logic */}
                       <FormField
                         control={form.control}
                         name="photos"
-                        render={({
-                          field: { value, onChange, ...fieldProps },
-                        }) => (
+                        render={() => (
                           <FormItem>
                             <FormLabel>Fotos do Local (Obrigatório)</FormLabel>
                             <FormControl>
-                              <div className="space-y-2">
-                                <Input
-                                  {...fieldProps}
-                                  type="file"
-                                  accept="image/*"
-                                  multiple
-                                  className="cursor-pointer file:cursor-pointer"
-                                  onChange={(event) => {
-                                    onChange(event.target.files)
-                                  }}
-                                />
+                              <div className="space-y-4">
+                                <div className="flex items-center gap-2">
+                                  <label
+                                    htmlFor="photo-upload"
+                                    className="cursor-pointer inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 w-full text-muted-foreground"
+                                  >
+                                    <UploadCloud className="mr-2 h-4 w-4" />
+                                    Clique para selecionar fotos
+                                  </label>
+                                  <input
+                                    id="photo-upload"
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    className="hidden"
+                                    onChange={handleFileChange}
+                                  />
+                                </div>
+
+                                {/* Preview Gallery */}
+                                {previewUrls.length > 0 && (
+                                  <div className="space-y-2">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                      {previewUrls
+                                        .slice(0, 10)
+                                        .map((url, idx) => (
+                                          <div
+                                            key={idx}
+                                            className="relative aspect-square group rounded-md overflow-hidden border"
+                                          >
+                                            <img
+                                              src={url}
+                                              alt={`Preview ${idx}`}
+                                              className="w-full h-full object-cover"
+                                            />
+                                            <button
+                                              type="button"
+                                              onClick={() => removeFile(idx)}
+                                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                              title="Remover foto"
+                                            >
+                                              <X className="h-3 w-3" />
+                                            </button>
+                                          </div>
+                                        ))}
+                                    </div>
+                                    {previewUrls.length > 10 && (
+                                      <p className="text-xs text-amber-600 font-medium">
+                                        Exibindo apenas as 10 primeiras fotos,
+                                        mas todas {selectedFiles.length} serão
+                                        enviadas.
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </FormControl>
                             <FormDescription>

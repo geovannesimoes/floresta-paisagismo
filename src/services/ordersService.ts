@@ -279,9 +279,14 @@ export const ordersService = {
     return { data, error: dbError }
   },
 
-  async uploadDeliverable(orderId: string, file: File, title: string) {
+  async uploadDeliverable(
+    orderId: string,
+    file: File,
+    title: string,
+    customType?: string,
+  ) {
     const fileExt = file.name.split('.').pop()
-    const type = file.type.startsWith('image') ? 'image' : 'pdf'
+    const type = customType || (file.type.startsWith('image') ? 'image' : 'pdf')
     const fileName = `deliverables/${orderId}/${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}-${Date.now()}.${fileExt}`
 
     const { error: uploadError } = await supabase.storage

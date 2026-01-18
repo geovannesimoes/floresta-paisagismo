@@ -15,8 +15,10 @@ import {
   List,
   Eye,
   X,
+  Upload,
+  AlertTriangle,
 } from 'lucide-react'
-import { differenceInDays, addDays } from 'date-fns'
+import { differenceInDays, addDays, format } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -61,6 +63,7 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
 import { LOGO_URL } from '@/lib/constants'
@@ -122,6 +125,10 @@ export default function Admin() {
   const [deliverableFiles, setDeliverableFiles] = useState<File[]>([])
   const [deliverableCategory, setDeliverableCategory] = useState<string>('')
   const [deliverableCustomTitle, setDeliverableCustomTitle] = useState('')
+
+  // Revision Upload State
+  const [revisedFile, setRevisedFile] = useState<File | null>(null)
+  const [revisedTitle, setRevisedTitle] = useState('Projeto Revisado')
 
   useEffect(() => {
     // Ensuring user session is ready before loading data
@@ -348,6 +355,32 @@ export default function Admin() {
     }
   }
 
+  const handleUploadRevision = async () => {
+    if (!selectedOrder || !revisedFile) return
+    setIsUploading(true)
+
+    try {
+      const { data, error } = await ordersService.uploadDeliverable(
+        selectedOrder.id,
+        revisedFile,
+        revisedTitle,
+        'revised_project',
+      )
+
+      if (error) throw error
+
+      await refreshSelectedOrder(selectedOrder.id)
+      toast({ title: 'Projeto revisado enviado!' })
+      setRevisedFile(null)
+      setRevisedTitle('Projeto Revisado')
+    } catch (e) {
+      console.error(e)
+      toast({ title: 'Erro ao enviar revisão', variant: 'destructive' })
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
   const handleDeleteDeliverable = async (id: string) => {
     if (!selectedOrder) return
     try {
@@ -491,10 +524,24 @@ export default function Admin() {
                   </TableHeader>
                   <TableBody>
                     {orders.map((order) => {
+                      const hasRevisionRequest = order.revisions?.some(
+                        (r) =>
+                          r.status === 'Pendente' ||
+                          r.status === 'Requested' ||
+                          r.status === 'open',
+                      )
                       return (
                         <TableRow key={order.id}>
                           <TableCell className="font-mono font-bold">
                             {order.code}
+                            {hasRevisionRequest && (
+                              <Badge
+                                variant="destructive"
+                                className="ml-2 whitespace-nowrap"
+                              >
+                                Revisão solicitada
+                              </Badge>
+                            )}
                           </TableCell>
                           <TableCell>
                             <div className="font-medium">
@@ -642,6 +689,7 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="settings">
+            {/* Same settings content */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               <div className="lg:col-span-1">
                 <nav className="space-y-1" aria-label="Settings sections">
@@ -1079,6 +1127,50 @@ export default function Admin() {
                     <h4 className="font-bold mb-4">
                       Upload de Arquivos (Entregáveis)
                     </h4>
+
+                    {selectedOrder.revisions?.some(
+                      (r) =>
+                        r.status === 'Pendente' ||
+                        r.status === 'Requested' ||
+                        r.status === 'open',
+                    ) && (
+                      <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                        <div className="flex items-center gap-2 text-orange-800 font-bold mb-3">
+                          <AlertTriangle className="h-5 w-5" />
+                          Solicitação de Revisão Ativa
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Enviar Projeto Revisado</Label>
+                          <Input
+                            type="file"
+                            onChange={(e) =>
+                              setRevisedFile(e.target.files?.[0] || null)
+                            }
+                          />
+                          <Input
+                            placeholder="Título da Revisão"
+                            value={revisedTitle}
+                            onChange={(e) => setRevisedTitle(e.target.value)}
+                            className="mt-2"
+                          />
+                          <Button
+                            className="w-full mt-2 bg-orange-600 hover:bg-orange-700 text-white"
+                            onClick={handleUploadRevision}
+                            disabled={isUploading || !revisedFile}
+                          >
+                            {isUploading ? (
+                              'Enviando...'
+                            ) : (
+                              <>
+                                <Upload className="mr-2 h-4 w-4" /> Enviar
+                                Revisão
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="space-y-3">
                       <div className="space-y-1">
                         <Label>Categoria</Label>
@@ -1135,31 +1227,57 @@ export default function Admin() {
                       </Button>
                     </div>
 
-                    {/* Always Visible Deliverables - Per User Story 6 */}
+                    {/* Always Visible Deliverables - Per User Story 6 + 1 */}
                     <div className="mt-4 space-y-2">
+                      <h5 className="font-bold text-sm mt-6 mb-2">
+                        Histórico de Envios
+                      </h5>
                       {selectedOrder.deliverables &&
                       selectedOrder.deliverables.length > 0 ? (
                         selectedOrder.deliverables.map((d) => (
                           <div
                             key={d.id}
-                            className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded"
+                            className={cn(
+                              'flex justify-between items-center text-sm p-3 rounded border',
+                              d.type === 'revised_project'
+                                ? 'bg-orange-50 border-orange-200'
+                                : 'bg-gray-50 border-gray-100',
+                            )}
                           >
-                            <span className="truncate flex-1 pr-2">
-                              {d.title}
-                            </span>
+                            <div className="flex flex-col flex-1 pr-2">
+                              <span className="font-medium truncate">
+                                {d.title}
+                              </span>
+                              <div className="flex gap-2 text-xs text-muted-foreground">
+                                <span>
+                                  {format(
+                                    new Date(d.created_at),
+                                    "dd/MM/yy 'às' HH:mm",
+                                  )}
+                                </span>
+                                {d.type === 'revised_project' && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] h-4 px-1 py-0 text-orange-600 border-orange-200"
+                                  >
+                                    Revisão
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
                             <div className="flex items-center gap-2">
                               <a
                                 href={d.url}
                                 target="_blank"
                                 className="text-blue-600 hover:underline flex items-center gap-1"
                               >
-                                <Eye className="h-3 w-3" /> Ver
+                                <Eye className="h-3 w-3" />
                               </a>
                               <button
                                 onClick={() => handleDeleteDeliverable(d.id)}
                                 className="text-red-500 hover:text-red-700 flex items-center gap-1 ml-2"
                               >
-                                <Trash className="h-3 w-3" /> Excluir
+                                <Trash className="h-3 w-3" />
                               </button>
                             </div>
                           </div>
