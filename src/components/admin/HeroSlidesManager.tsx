@@ -1,16 +1,7 @@
 import { useState, useEffect } from 'react'
-import {
-  Plus,
-  Edit,
-  Trash,
-  ArrowUp,
-  ArrowDown,
-  Loader2,
-  Image as ImageIcon,
-} from 'lucide-react'
+import { Plus, Trash, ArrowUp, ArrowDown, Loader2, Edit } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Card,
   CardContent,
@@ -57,22 +48,18 @@ export function HeroSlidesManager() {
     setLoading(false)
   }
 
-  const handleEdit = (slide: HeroSlide) => {
-    setEditingSlide(slide)
-    setNewImageFile(null)
-    setIsDialogOpen(true)
-  }
-
   const handleCreate = () => {
     setEditingSlide({
       is_active: true,
       sort_order: slides.length,
-      title: '',
-      subtitle: '',
-      cta_text: 'Saiba Mais',
-      cta_href: '/planos',
       image_url: '',
     })
+    setNewImageFile(null)
+    setIsDialogOpen(true)
+  }
+
+  const handleEdit = (slide: HeroSlide) => {
+    setEditingSlide(slide)
     setNewImageFile(null)
     setIsDialogOpen(true)
   }
@@ -95,6 +82,7 @@ export function HeroSlidesManager() {
       }
 
       const slideData = { ...editingSlide, image_url: finalImageUrl }
+      // Explicitly ignoring text fields as per requirement
 
       if (slideData.id) {
         await heroSlidesService.updateSlide(slideData.id, slideData)
@@ -131,20 +119,13 @@ export function HeroSlidesManager() {
     const newSlides = [...slides]
     const targetIndex = direction === 'up' ? index - 1 : index + 1
 
-    // Swap array position locally first for UI feedback
-    const temp = newSlides[index]
-    newSlides[index] = newSlides[targetIndex]
-    newSlides[targetIndex] = temp
-
-    // Update sort_order for swapped items
-    // (In a real app, maybe batch update, but here one by one is fine for small lists)
     const itemA = newSlides[index]
     const itemB = newSlides[targetIndex]
 
     setLoading(true)
     await Promise.all([
-      heroSlidesService.updateSlide(itemA.id, { sort_order: index }),
-      heroSlidesService.updateSlide(itemB.id, { sort_order: targetIndex }),
+      heroSlidesService.updateSlide(itemA.id, { sort_order: targetIndex }),
+      heroSlidesService.updateSlide(itemB.id, { sort_order: index }),
     ])
 
     loadSlides()
@@ -154,13 +135,14 @@ export function HeroSlidesManager() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle>Hero (Carrossel)</CardTitle>
+          <CardTitle>Hero (Imagens de Fundo)</CardTitle>
           <CardDescription>
-            Gerencie os slides da página inicial
+            Gerencie as imagens que aparecem no carrossel de fundo. O texto é
+            fixo e configurado na seção "Hero (Texto Principal)".
           </CardDescription>
         </div>
         <Button onClick={handleCreate} size="sm">
-          <Plus className="h-4 w-4 mr-2" /> Novo Slide
+          <Plus className="h-4 w-4 mr-2" /> Nova Imagem
         </Button>
       </CardHeader>
       <CardContent>
@@ -174,7 +156,6 @@ export function HeroSlidesManager() {
           <TableHeader>
             <TableRow>
               <TableHead>Imagem</TableHead>
-              <TableHead>Título</TableHead>
               <TableHead>Ativo</TableHead>
               <TableHead>Ordem</TableHead>
               <TableHead className="text-right">Ações</TableHead>
@@ -189,9 +170,6 @@ export function HeroSlidesManager() {
                     alt="Slide"
                     className="h-12 w-20 object-cover rounded bg-gray-100"
                   />
-                </TableCell>
-                <TableCell className="font-medium max-w-[200px] truncate">
-                  {slide.title || '(Sem título)'}
                 </TableCell>
                 <TableCell>
                   <Switch checked={slide.is_active} disabled />
@@ -237,6 +215,16 @@ export function HeroSlidesManager() {
                 </TableCell>
               </TableRow>
             ))}
+            {slides.length === 0 && !loading && (
+              <TableRow>
+                <TableCell
+                  colSpan={4}
+                  className="text-center text-muted-foreground"
+                >
+                  Nenhuma imagem configurada. Será usada a imagem padrão.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
 
@@ -244,7 +232,7 @@ export function HeroSlidesManager() {
           <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
-                {editingSlide.id ? 'Editar Slide' : 'Novo Slide'}
+                {editingSlide.id ? 'Editar Imagem' : 'Nova Imagem'}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -281,58 +269,6 @@ export function HeroSlidesManager() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Título Principal</Label>
-                <Input
-                  value={editingSlide.title || ''}
-                  onChange={(e) =>
-                    setEditingSlide({ ...editingSlide, title: e.target.value })
-                  }
-                  placeholder="Ex: Transforme seu Jardim"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Subtítulo</Label>
-                <Textarea
-                  value={editingSlide.subtitle || ''}
-                  onChange={(e) =>
-                    setEditingSlide({
-                      ...editingSlide,
-                      subtitle: e.target.value,
-                    })
-                  }
-                  placeholder="Ex: Projetos de paisagismo online..."
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Texto do Botão (CTA)</Label>
-                  <Input
-                    value={editingSlide.cta_text || ''}
-                    onChange={(e) =>
-                      setEditingSlide({
-                        ...editingSlide,
-                        cta_text: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Link do Botão</Label>
-                  <Input
-                    value={editingSlide.cta_href || ''}
-                    onChange={(e) =>
-                      setEditingSlide({
-                        ...editingSlide,
-                        cta_href: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-              </div>
-
               <div className="flex items-center gap-2 pt-2">
                 <Switch
                   checked={editingSlide.is_active}
@@ -354,7 +290,7 @@ export function HeroSlidesManager() {
                     Salvando...
                   </>
                 ) : (
-                  'Salvar Slide'
+                  'Salvar Imagem'
                 )}
               </Button>
             </div>

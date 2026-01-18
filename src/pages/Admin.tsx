@@ -13,13 +13,9 @@ import {
   Palette,
   LayoutTemplate,
   List,
-  Eye,
-  X,
-  Upload,
-  AlertTriangle,
-  Mail, // Added import to fix ReferenceError
+  Mail,
 } from 'lucide-react'
-import { differenceInDays, addDays, format } from 'date-fns'
+import { differenceInDays, addDays } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -67,7 +63,6 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
-import { cn } from '@/lib/utils'
 import { LOGO_URL } from '@/lib/constants'
 import {
   projectsService,
@@ -77,12 +72,12 @@ import {
 import { siteSettingsService } from '@/services/siteSettingsService'
 import { ordersService, Order } from '@/services/ordersService'
 import { useSiteSettings } from '@/hooks/use-site-settings'
-import { DELIVERABLE_CATEGORIES } from '@/lib/plan-constants'
 import { PlansManager } from '@/components/admin/PlansManager'
 import { OrderChecklist } from '@/components/admin/OrderChecklist'
+import { OrderFiles } from '@/components/admin/OrderFiles'
 import { DeadlineTracker } from '@/components/admin/DeadlineTracker'
 import { NotificationSettings } from '@/components/admin/NotificationSettings'
-import { HeroSlidesManager } from '@/components/admin/HeroSlidesManager' // Added import
+import { HeroSlidesManager } from '@/components/admin/HeroSlidesManager'
 
 // Constants for Routes
 const VALID_ROUTES = [
@@ -129,10 +124,6 @@ export default function Admin() {
   const [deliverableFiles, setDeliverableFiles] = useState<File[]>([])
   const [deliverableCategory, setDeliverableCategory] = useState<string>('')
   const [deliverableCustomTitle, setDeliverableCustomTitle] = useState('')
-
-  // Revision Upload State
-  const [revisedFile, setRevisedFile] = useState<File | null>(null)
-  const [revisedTitle, setRevisedTitle] = useState('Projeto Revisado')
 
   useEffect(() => {
     // Wait for auth loading to complete
@@ -251,43 +242,6 @@ export default function Admin() {
     }
   }
 
-  const handleAddMedia = async () => {
-    if (!editingProject.id || (!newMediaUrl && !newMediaFile)) return
-    setIsUploading(true)
-    try {
-      let finalUrl = newMediaUrl
-      if (newMediaFile) {
-        const { url } = await projectsService.uploadImage(newMediaFile)
-        if (url) finalUrl = url
-      }
-      const { data } = await projectsService.addMedia({
-        project_id: editingProject.id,
-        url: finalUrl,
-        type: newMediaType,
-      })
-      if (data) {
-        setMediaList([...mediaList, data])
-      }
-      toast({ title: 'Mídia adicionada' })
-      setNewMediaFile(null)
-      setNewMediaUrl('')
-    } catch (e) {
-      toast({ title: 'Erro no upload', variant: 'destructive' })
-    } finally {
-      setIsUploading(false)
-    }
-  }
-
-  const handleDeleteMedia = async (mediaId: string) => {
-    try {
-      await projectsService.deleteMedia(mediaId)
-      setMediaList(mediaList.filter((m) => m.id !== mediaId))
-      toast({ title: 'Imagem removida' })
-    } catch (e) {
-      toast({ title: 'Erro ao remover imagem', variant: 'destructive' })
-    }
-  }
-
   // --- ORDER ACTIONS ---
   const handleUpdateOrderStatus = async (status: string) => {
     if (!selectedOrder) return
@@ -355,58 +309,6 @@ export default function Admin() {
       toast({ title: 'Erro ao enviar', variant: 'destructive' })
     } finally {
       setIsUploading(false)
-    }
-  }
-
-  const handleUploadRevision = async () => {
-    if (!selectedOrder || !revisedFile) return
-    setIsUploading(true)
-
-    try {
-      const { data, error } = await ordersService.uploadDeliverable(
-        selectedOrder.id,
-        revisedFile,
-        revisedTitle,
-        'revised_project',
-      )
-
-      if (error) throw error
-
-      await refreshSelectedOrder(selectedOrder.id)
-      toast({ title: 'Projeto revisado enviado e solicitação resolvida!' })
-      setRevisedFile(null)
-      setRevisedTitle('Projeto Revisado')
-    } catch (e) {
-      console.error(e)
-      toast({ title: 'Erro ao enviar revisão', variant: 'destructive' })
-    } finally {
-      setIsUploading(false)
-    }
-  }
-
-  const handleDeleteDeliverable = async (id: string) => {
-    if (!selectedOrder) return
-    try {
-      const { error } = await ordersService.deleteDeliverable(id)
-      if (error) throw error
-      await refreshSelectedOrder(selectedOrder.id)
-      toast({ title: 'Arquivo removido' })
-    } catch (e) {
-      toast({ title: 'Erro ao remover arquivo', variant: 'destructive' })
-    }
-  }
-
-  const getOrderPlanDetails = (order: Order) => {
-    if (
-      order.plan_snapshot_price_cents !== undefined &&
-      order.plan_snapshot_name
-    ) {
-      return {
-        price: (order.plan_snapshot_price_cents / 100).toFixed(2),
-      }
-    }
-    return {
-      price: order.price ? order.price.toFixed(2) : '?',
     }
   }
 
@@ -721,10 +623,10 @@ export default function Admin() {
                   </a>
                   <a
                     href="#hero"
-                    className="flex items-center px-3 py-2 text-sm font-medium rounded-md bg-white text-gray-900 hover:bg-gray-50 border opacity-50"
+                    className="flex items-center px-3 py-2 text-sm font-medium rounded-md bg-white text-gray-900 hover:bg-gray-50 border"
                   >
                     <LayoutTemplate className="mr-3 h-5 w-5 text-gray-500" />{' '}
-                    Hero (Estático - Legado)
+                    Hero (Texto Principal)
                   </a>
                   <a
                     href="#cta"
@@ -850,19 +752,21 @@ export default function Admin() {
                   <PlansManager />
                 </section>
 
-                {/* Hero Section (Static Legacy) */}
-                <section id="hero" className="scroll-mt-20 opacity-70">
+                {/* Hero Section (Text Overlay) */}
+                <section id="hero" className="scroll-mt-20">
                   <Card>
                     <CardHeader>
-                      <CardTitle>Hero Section (Estático - Fallback)</CardTitle>
+                      <CardTitle>Hero Section (Texto & Overlay)</CardTitle>
                       <CardDescription>
-                        Usado apenas se nenhum slide ativo for encontrado no
-                        carrossel.
+                        Este texto aparecerá sobre as imagens do carrossel.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="space-y-2">
-                        <Label>Imagem de Fundo</Label>
+                        <Label>Imagem de Fundo (Fallback)</Label>
+                        <CardDescription>
+                          Usada caso não haja slides ativos.
+                        </CardDescription>
                         <div className="flex gap-4">
                           {settingsForm.hero_image_url && (
                             <img
@@ -1050,7 +954,7 @@ export default function Admin() {
           </TabsContent>
         </Tabs>
 
-        {/* Modals remain the same, just keeping the structure intact */}
+        {/* Order Modal */}
         <Dialog open={isOrderDialogOpen} onOpenChange={setIsOrderDialogOpen}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -1059,7 +963,7 @@ export default function Admin() {
             {selectedOrder && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-4">
-                  {/* Order details content same as before */}
+                  {/* Order details content */}
                   <div className="bg-muted p-4 rounded-lg text-sm">
                     <p>
                       <strong>Código:</strong>{' '}
@@ -1097,28 +1001,85 @@ export default function Admin() {
                     </Select>
                   </div>
                   <DeadlineTracker order={selectedOrder} />
+
+                  {/* New File Visibility Component */}
+                  <OrderFiles order={selectedOrder} />
                 </div>
                 <div className="space-y-6">
                   <OrderChecklist
                     order={selectedOrder}
                     refreshKey={checklistRefreshKey}
                   />
-                  {/* Upload section simplified for brevity but functionality preserved */}
-                  <div className="border rounded-lg p-4">
-                    <h4 className="font-bold mb-4">Arquivos</h4>
-                    <div className="space-y-2">
-                      <Label>Arquivo</Label>
-                      <Input
-                        type="file"
-                        onChange={(e) =>
-                          setDeliverableFiles(Array.from(e.target.files || []))
-                        }
-                      />
+                  {/* Upload section */}
+                  <div className="border rounded-lg p-4 bg-white">
+                    <h4 className="font-bold mb-4">
+                      Enviar Arquivos / Entregáveis
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Label>Categoria</Label>
+                        <Select
+                          value={deliverableCategory}
+                          onValueChange={setDeliverableCategory}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o tipo de arquivo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Projeto (PDF/Imagem)">
+                              Projeto (PDF/Imagem)
+                            </SelectItem>
+                            <SelectItem value="Sugestão de plantas ideais">
+                              Sugestão de plantas
+                            </SelectItem>
+                            <SelectItem value="Guia de manutenção básico">
+                              Guia de manutenção
+                            </SelectItem>
+                            <SelectItem value="Lista de compras completa">
+                              Lista de compras
+                            </SelectItem>
+                            <SelectItem value="Outros">
+                              Outros / Personalizado
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {deliverableCategory === 'Outros' && (
+                        <div className="space-y-2">
+                          <Label>Título Personalizado</Label>
+                          <Input
+                            value={deliverableCustomTitle}
+                            onChange={(e) =>
+                              setDeliverableCustomTitle(e.target.value)
+                            }
+                            placeholder="Ex: Rascunho Inicial"
+                          />
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <Label>Arquivo(s)</Label>
+                        <Input
+                          type="file"
+                          multiple
+                          onChange={(e) =>
+                            setDeliverableFiles(
+                              Array.from(e.target.files || []),
+                            )
+                          }
+                        />
+                      </div>
+
                       <Button
                         onClick={handleUploadDeliverables}
                         disabled={isUploading}
+                        className="w-full"
                       >
-                        Enviar
+                        {isUploading ? (
+                          <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                        ) : null}
+                        Enviar Arquivo(s)
                       </Button>
                     </div>
                   </div>
