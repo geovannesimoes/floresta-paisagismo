@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import {
   LogOut,
@@ -123,26 +123,7 @@ export default function Admin() {
   const [deliverableCategory, setDeliverableCategory] = useState<string>('')
   const [deliverableCustomTitle, setDeliverableCustomTitle] = useState('')
 
-  useEffect(() => {
-    // Wait for auth loading to complete
-    if (authLoading) return
-
-    if (!user) {
-      navigate('/admin/login')
-      return
-    }
-
-    // Load data only if authenticated
-    loadData()
-  }, [user, authLoading, navigate])
-
-  useEffect(() => {
-    if (settings) {
-      setSettingsForm(settings)
-    }
-  }, [settings])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true)
     try {
       const [pData, oData] = await Promise.all([
@@ -161,7 +142,26 @@ export default function Admin() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [toast])
+
+  useEffect(() => {
+    // Wait for auth loading to complete
+    if (authLoading) return
+
+    if (!user) {
+      navigate('/admin/login')
+      return
+    }
+
+    // Load data only if authenticated
+    loadData()
+  }, [user, authLoading, navigate, loadData])
+
+  useEffect(() => {
+    if (settings) {
+      setSettingsForm(settings)
+    }
+  }, [settings])
 
   const refreshSelectedOrder = async (orderId: string) => {
     try {
@@ -977,226 +977,228 @@ export default function Admin() {
               </div>
             </div>
           </TabsContent>
-        </Tabs>
 
-        {/* Order Modal */}
-        <Dialog open={isOrderDialogOpen} onOpenChange={setIsOrderDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Gerenciar Pedido</DialogTitle>
-            </DialogHeader>
-            {selectedOrder && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-4">
-                  {/* Order details content */}
-                  <div className="bg-muted p-4 rounded-lg text-sm">
-                    <p>
-                      <strong>Código:</strong>{' '}
-                      <span className="font-mono font-bold">
-                        {selectedOrder.code}
-                      </span>
-                    </p>
-                    <p>
-                      <strong>Cliente:</strong> {selectedOrder.client_name}
-                    </p>
-                    <p>
-                      <strong>Email:</strong> {selectedOrder.client_email}
-                    </p>
-                    <p>
-                      <strong>Status:</strong> {selectedOrder.status}
-                    </p>
-                    {selectedOrder.notes && (
-                      <div className="mt-2 pt-2 border-t border-gray-200">
-                        <strong>Notas:</strong>
-                        <p className="whitespace-pre-wrap">
-                          {selectedOrder.notes}
-                        </p>
+          {/* Order Modal */}
+          <Dialog open={isOrderDialogOpen} onOpenChange={setIsOrderDialogOpen}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Gerenciar Pedido</DialogTitle>
+              </DialogHeader>
+              {selectedOrder && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    {/* Order details content */}
+                    <div className="bg-muted p-4 rounded-lg text-sm">
+                      <p>
+                        <strong>Código:</strong>{' '}
+                        <span className="font-mono font-bold">
+                          {selectedOrder.code}
+                        </span>
+                      </p>
+                      <p>
+                        <strong>Cliente:</strong> {selectedOrder.client_name}
+                      </p>
+                      <p>
+                        <strong>Email:</strong> {selectedOrder.client_email}
+                      </p>
+                      <p>
+                        <strong>Status:</strong> {selectedOrder.status}
+                      </p>
+                      {selectedOrder.notes && (
+                        <div className="mt-2 pt-2 border-t border-gray-200">
+                          <strong>Notas:</strong>
+                          <p className="whitespace-pre-wrap">
+                            {selectedOrder.notes}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Alterar Status</Label>
+                      <Select
+                        value={selectedOrder.status}
+                        onValueChange={handleUpdateOrderStatus}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Aguardando Pagamento">
+                            Aguardando Pagamento
+                          </SelectItem>
+                          <SelectItem value="Recebido">Recebido</SelectItem>
+                          <SelectItem value="Em Produção">
+                            Em Produção
+                          </SelectItem>
+                          <SelectItem value="Enviado">Enviado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <DeadlineTracker order={selectedOrder} />
+
+                    <OrderFiles
+                      order={selectedOrder}
+                      onRefresh={() => refreshSelectedOrder(selectedOrder.id)}
+                    />
+                  </div>
+                  <div className="space-y-6">
+                    {/* Revision Alert Section */}
+                    {hasActiveRevision(selectedOrder) && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-4 animate-in fade-in slide-in-from-top-2">
+                        <div className="flex items-center gap-2 text-amber-800 font-bold">
+                          <AlertTriangle className="h-5 w-5" />
+                          Solicitação de Revisão
+                        </div>
+                        <div className="text-sm text-amber-900 bg-white/50 p-2 rounded">
+                          {selectedOrder.revisions
+                            ?.filter((r) => r.status === 'Pendente')
+                            .map((r, i) => (
+                              <p key={i} className="mb-1">
+                                "{r.description}"
+                              </p>
+                            ))}
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-amber-900">
+                            Enviar Projeto Revisado
+                          </Label>
+                          <Input
+                            type="file"
+                            multiple
+                            onChange={(e) =>
+                              setDeliverableFiles(
+                                Array.from(e.target.files || []),
+                              )
+                            }
+                            className="bg-white"
+                          />
+                          <Button
+                            onClick={() => handleUploadDeliverables(true)}
+                            disabled={
+                              isUploading || deliverableFiles.length === 0
+                            }
+                            className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                          >
+                            {isUploading ? (
+                              <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                            ) : (
+                              <Upload className="mr-2 h-4 w-4" />
+                            )}
+                            Enviar Revisão e Resolver
+                          </Button>
+                        </div>
                       </div>
                     )}
-                  </div>
 
-                  <div className="space-y-2">
-                    <Label>Alterar Status</Label>
-                    <Select
-                      value={selectedOrder.status}
-                      onValueChange={handleUpdateOrderStatus}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Aguardando Pagamento">
-                          Aguardando Pagamento
-                        </SelectItem>
-                        <SelectItem value="Recebido">Recebido</SelectItem>
-                        <SelectItem value="Em Produção">Em Produção</SelectItem>
-                        <SelectItem value="Enviado">Enviado</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <DeadlineTracker order={selectedOrder} />
+                    <OrderChecklist
+                      order={selectedOrder}
+                      refreshKey={checklistRefreshKey}
+                    />
 
-                  <OrderFiles
-                    order={selectedOrder}
-                    onRefresh={() => refreshSelectedOrder(selectedOrder.id)}
-                  />
-                </div>
-                <div className="space-y-6">
-                  {/* Revision Alert Section */}
-                  {hasActiveRevision(selectedOrder) && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-4 animate-in fade-in slide-in-from-top-2">
-                      <div className="flex items-center gap-2 text-amber-800 font-bold">
-                        <AlertTriangle className="h-5 w-5" />
-                        Solicitação de Revisão
-                      </div>
-                      <div className="text-sm text-amber-900 bg-white/50 p-2 rounded">
-                        {selectedOrder.revisions
-                          ?.filter((r) => r.status === 'Pendente')
-                          .map((r, i) => (
-                            <p key={i} className="mb-1">
-                              "{r.description}"
-                            </p>
-                          ))}
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-amber-900">
-                          Enviar Projeto Revisado
-                        </Label>
-                        <Input
-                          type="file"
-                          multiple
-                          onChange={(e) =>
-                            setDeliverableFiles(
-                              Array.from(e.target.files || []),
-                            )
-                          }
-                          className="bg-white"
-                        />
+                    {/* Standard Upload section */}
+                    <div className="border rounded-lg p-4 bg-white">
+                      <h4 className="font-bold mb-4">
+                        Enviar Arquivos / Entregáveis
+                      </h4>
+                      <div className="space-y-3">
+                        <div className="space-y-2">
+                          <Label>Categoria</Label>
+                          <Select
+                            value={deliverableCategory}
+                            onValueChange={setDeliverableCategory}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o tipo de arquivo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Projeto (PDF/Imagem)">
+                                Projeto (PDF/Imagem)
+                              </SelectItem>
+                              <SelectItem value="Sugestão de plantas ideais">
+                                Sugestão de plantas
+                              </SelectItem>
+                              <SelectItem value="Guia de manutenção básico">
+                                Guia de manutenção
+                              </SelectItem>
+                              <SelectItem value="Lista de compras completa">
+                                Lista de compras
+                              </SelectItem>
+                              <SelectItem value="Outros">
+                                Outros / Personalizado
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {deliverableCategory === 'Outros' && (
+                          <div className="space-y-2">
+                            <Label>Título Personalizado</Label>
+                            <Input
+                              value={deliverableCustomTitle}
+                              onChange={(e) =>
+                                setDeliverableCustomTitle(e.target.value)
+                              }
+                              placeholder="Ex: Rascunho Inicial"
+                            />
+                          </div>
+                        )}
+
+                        <div className="space-y-2">
+                          <Label>Arquivo(s)</Label>
+                          <Input
+                            type="file"
+                            multiple
+                            onChange={(e) =>
+                              setDeliverableFiles(
+                                Array.from(e.target.files || []),
+                              )
+                            }
+                          />
+                        </div>
+
                         <Button
-                          onClick={() => handleUploadDeliverables(true)}
-                          disabled={
-                            isUploading || deliverableFiles.length === 0
-                          }
-                          className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                          onClick={() => handleUploadDeliverables(false)}
+                          disabled={isUploading}
+                          className="w-full"
                         >
                           {isUploading ? (
                             <Loader2 className="animate-spin mr-2 h-4 w-4" />
-                          ) : (
-                            <Upload className="mr-2 h-4 w-4" />
-                          )}
-                          Enviar Revisão e Resolver
+                          ) : null}
+                          Enviar Arquivo(s)
                         </Button>
                       </div>
                     </div>
-                  )}
-
-                  <OrderChecklist
-                    order={selectedOrder}
-                    refreshKey={checklistRefreshKey}
-                  />
-
-                  {/* Standard Upload section */}
-                  <div className="border rounded-lg p-4 bg-white">
-                    <h4 className="font-bold mb-4">
-                      Enviar Arquivos / Entregáveis
-                    </h4>
-                    <div className="space-y-3">
-                      <div className="space-y-2">
-                        <Label>Categoria</Label>
-                        <Select
-                          value={deliverableCategory}
-                          onValueChange={setDeliverableCategory}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione o tipo de arquivo" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Projeto (PDF/Imagem)">
-                              Projeto (PDF/Imagem)
-                            </SelectItem>
-                            <SelectItem value="Sugestão de plantas ideais">
-                              Sugestão de plantas
-                            </SelectItem>
-                            <SelectItem value="Guia de manutenção básico">
-                              Guia de manutenção
-                            </SelectItem>
-                            <SelectItem value="Lista de compras completa">
-                              Lista de compras
-                            </SelectItem>
-                            <SelectItem value="Outros">
-                              Outros / Personalizado
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {deliverableCategory === 'Outros' && (
-                        <div className="space-y-2">
-                          <Label>Título Personalizado</Label>
-                          <Input
-                            value={deliverableCustomTitle}
-                            onChange={(e) =>
-                              setDeliverableCustomTitle(e.target.value)
-                            }
-                            placeholder="Ex: Rascunho Inicial"
-                          />
-                        </div>
-                      )}
-
-                      <div className="space-y-2">
-                        <Label>Arquivo(s)</Label>
-                        <Input
-                          type="file"
-                          multiple
-                          onChange={(e) =>
-                            setDeliverableFiles(
-                              Array.from(e.target.files || []),
-                            )
-                          }
-                        />
-                      </div>
-
-                      <Button
-                        onClick={() => handleUploadDeliverables(false)}
-                        disabled={isUploading}
-                        className="w-full"
-                      >
-                        {isUploading ? (
-                          <Loader2 className="animate-spin mr-2 h-4 w-4" />
-                        ) : null}
-                        Enviar Arquivo(s)
-                      </Button>
-                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+              )}
+            </DialogContent>
+          </Dialog>
 
-        <Dialog
-          open={isProjectDialogOpen}
-          onOpenChange={setIsProjectDialogOpen}
-        >
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Editar Projeto</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <Label>Título</Label>
-              <Input
-                value={editingProject.title || ''}
-                onChange={(e) =>
-                  setEditingProject({
-                    ...editingProject,
-                    title: e.target.value,
-                  })
-                }
-              />
-              <Button onClick={handleSaveProject}>Salvar</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+          <Dialog
+            open={isProjectDialogOpen}
+            onOpenChange={setIsProjectDialogOpen}
+          >
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Editar Projeto</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <Label>Título</Label>
+                <Input
+                  value={editingProject.title || ''}
+                  onChange={(e) =>
+                    setEditingProject({
+                      ...editingProject,
+                      title: e.target.value,
+                    })
+                  }
+                />
+                <Button onClick={handleSaveProject}>Salvar</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </Tabs>
       </main>
     </div>
   )
