@@ -14,6 +14,8 @@ import {
   LayoutTemplate,
   List,
   Mail,
+  Upload,
+  AlertTriangle,
 } from 'lucide-react'
 import { differenceInDays, addDays } from 'date-fns'
 import { Button } from '@/components/ui/button'
@@ -64,6 +66,7 @@ import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
 import { LOGO_URL } from '@/lib/constants'
+import { cn } from '@/lib/utils'
 import {
   projectsService,
   Project,
@@ -113,11 +116,6 @@ export default function Admin() {
   const [checklistRefreshKey, setChecklistRefreshKey] = useState(0)
 
   // Media Upload State
-  const [newMediaUrl, setNewMediaUrl] = useState('')
-  const [newMediaFile, setNewMediaFile] = useState<File | null>(null)
-  const [newMediaType, setNewMediaType] = useState<
-    'before' | 'after' | 'gallery'
-  >('gallery')
   const [mediaList, setMediaList] = useState<ProjectMedia[]>([])
 
   // Deliverable Upload State
@@ -146,13 +144,23 @@ export default function Admin() {
 
   const loadData = async () => {
     setLoading(true)
-    const [pData, oData] = await Promise.all([
-      projectsService.getProjects(),
-      ordersService.getOrders(),
-    ])
-    setProjects(pData.data || [])
-    setOrders(oData.data || [])
-    setLoading(false)
+    try {
+      const [pData, oData] = await Promise.all([
+        projectsService.getProjects(),
+        ordersService.getOrders(),
+      ])
+      setProjects(pData.data || [])
+      setOrders(oData.data || [])
+    } catch (error) {
+      console.error('Failed to load admin data', error)
+      toast({
+        title: 'Erro ao carregar dados',
+        description: 'Verifique sua conexão.',
+        variant: 'destructive',
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   const refreshSelectedOrder = async (orderId: string) => {
@@ -258,23 +266,32 @@ export default function Admin() {
     toast({ title: 'Status atualizado e cliente notificado' })
   }
 
-  const handleUploadDeliverables = async () => {
+  const handleUploadDeliverables = async (isRevision = false) => {
     if (!selectedOrder || deliverableFiles.length === 0) return
 
-    const titleToUse =
-      deliverableCategory === 'Outros'
+    // If it's a revision, force specific category/type
+    const categoryToUse = isRevision
+      ? 'Projeto Revisado'
+      : deliverableCategory === 'Outros'
         ? deliverableCustomTitle
         : deliverableCategory || deliverableCustomTitle
 
-    if (!titleToUse) {
+    if (!categoryToUse) {
       toast({ title: 'Defina um título ou categoria', variant: 'destructive' })
       return
     }
 
+    const type = isRevision ? 'revised_project' : undefined
+
     setIsUploading(true)
     try {
       const uploadPromises = deliverableFiles.map((file) =>
-        ordersService.uploadDeliverable(selectedOrder.id, file, titleToUse),
+        ordersService.uploadDeliverable(
+          selectedOrder.id,
+          file,
+          categoryToUse,
+          type,
+        ),
       )
 
       const results = await Promise.all(uploadPromises)
@@ -285,23 +302,29 @@ export default function Admin() {
 
         toast({
           title: `${successfulUploads.length} arquivo(s) enviado(s)!`,
+          description: isRevision
+            ? 'Revisão enviada e status atualizado.'
+            : undefined,
         })
         setDeliverableFiles([])
         setDeliverableCategory('')
         setDeliverableCustomTitle('')
 
-        const { data: checklist } = await ordersService.getChecklist(
-          selectedOrder.id,
-        )
-        if (checklist) {
-          const targetItem = checklist.find((i) => i.text === titleToUse)
-          if (targetItem && !targetItem.is_done) {
-            await ordersService.toggleChecklistItem(targetItem.id, true)
-            setChecklistRefreshKey((prev) => prev + 1)
-            toast({
-              title: 'Checklist atualizado',
-              description: `Item "${targetItem.text}" marcado como concluído.`,
-            })
+        // Auto-check items if matched
+        if (!isRevision) {
+          const { data: checklist } = await ordersService.getChecklist(
+            selectedOrder.id,
+          )
+          if (checklist) {
+            const targetItem = checklist.find((i) => i.text === categoryToUse)
+            if (targetItem && !targetItem.is_done) {
+              await ordersService.toggleChecklistItem(targetItem.id, true)
+              setChecklistRefreshKey((prev) => prev + 1)
+              toast({
+                title: 'Checklist atualizado',
+                description: `Item "${targetItem.text}" marcado como concluído.`,
+              })
+            }
           }
         }
       }
@@ -352,6 +375,16 @@ export default function Admin() {
     }
 
     return <span className="text-muted-foreground">Aguardando</span>
+  }
+
+  // Check active revision request
+  const hasActiveRevision = (order: Order | null) => {
+    return order?.revisions?.some(
+      (r) =>
+        r.status === 'Pendente' ||
+        r.status === 'Requested' ||
+        r.status === 'open',
+    )
   }
 
   if (authLoading)
@@ -428,17 +461,12 @@ export default function Admin() {
                   </TableHeader>
                   <TableBody>
                     {orders.map((order) => {
-                      const hasRevisionRequest = order.revisions?.some(
-                        (r) =>
-                          r.status === 'Pendente' ||
-                          r.status === 'Requested' ||
-                          r.status === 'open',
-                      )
+                      const revisionRequested = hasActiveRevision(order)
                       return (
                         <TableRow key={order.id}>
                           <TableCell className="font-mono font-bold">
                             {order.code}
-                            {hasRevisionRequest && (
+                            {revisionRequested && (
                               <Badge
                                 variant="destructive"
                                 className="ml-2 whitespace-nowrap"
@@ -499,6 +527,7 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
+          {/* ... Projects Content ... */}
           <TabsContent value="projects">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
@@ -590,6 +619,7 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
+          {/* ... Settings Content ... */}
           <TabsContent value="settings">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               <div className="lg:col-span-1">
@@ -737,22 +767,18 @@ export default function Admin() {
                   </Card>
                 </section>
 
-                {/* Carousel Section (New) */}
                 <section id="carousel" className="scroll-mt-20">
                   <HeroSlidesManager />
                 </section>
 
-                {/* Notifications Section */}
                 <section id="notifications" className="scroll-mt-20">
                   <NotificationSettings />
                 </section>
 
-                {/* Plans Section */}
                 <section id="plans" className="scroll-mt-20">
                   <PlansManager />
                 </section>
 
-                {/* Hero Section (Text Overlay) */}
                 <section id="hero" className="scroll-mt-20">
                   <Card>
                     <CardHeader>
@@ -854,7 +880,6 @@ export default function Admin() {
                   </Card>
                 </section>
 
-                {/* CTA Section */}
                 <section id="cta" className="scroll-mt-20">
                   <Card>
                     <CardHeader>
@@ -980,7 +1005,16 @@ export default function Admin() {
                     <p>
                       <strong>Status:</strong> {selectedOrder.status}
                     </p>
+                    {selectedOrder.notes && (
+                      <div className="mt-2 pt-2 border-t border-gray-200">
+                        <strong>Notas:</strong>
+                        <p className="whitespace-pre-wrap">
+                          {selectedOrder.notes}
+                        </p>
+                      </div>
+                    )}
                   </div>
+
                   <div className="space-y-2">
                     <Label>Alterar Status</Label>
                     <Select
@@ -1002,15 +1036,66 @@ export default function Admin() {
                   </div>
                   <DeadlineTracker order={selectedOrder} />
 
-                  {/* New File Visibility Component */}
-                  <OrderFiles order={selectedOrder} />
+                  <OrderFiles
+                    order={selectedOrder}
+                    onRefresh={() => refreshSelectedOrder(selectedOrder.id)}
+                  />
                 </div>
                 <div className="space-y-6">
+                  {/* Revision Alert Section */}
+                  {hasActiveRevision(selectedOrder) && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-4 animate-in fade-in slide-in-from-top-2">
+                      <div className="flex items-center gap-2 text-amber-800 font-bold">
+                        <AlertTriangle className="h-5 w-5" />
+                        Solicitação de Revisão
+                      </div>
+                      <div className="text-sm text-amber-900 bg-white/50 p-2 rounded">
+                        {selectedOrder.revisions
+                          ?.filter((r) => r.status === 'Pendente')
+                          .map((r, i) => (
+                            <p key={i} className="mb-1">
+                              "{r.description}"
+                            </p>
+                          ))}
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-amber-900">
+                          Enviar Projeto Revisado
+                        </Label>
+                        <Input
+                          type="file"
+                          multiple
+                          onChange={(e) =>
+                            setDeliverableFiles(
+                              Array.from(e.target.files || []),
+                            )
+                          }
+                          className="bg-white"
+                        />
+                        <Button
+                          onClick={() => handleUploadDeliverables(true)}
+                          disabled={
+                            isUploading || deliverableFiles.length === 0
+                          }
+                          className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                        >
+                          {isUploading ? (
+                            <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                          ) : (
+                            <Upload className="mr-2 h-4 w-4" />
+                          )}
+                          Enviar Revisão e Resolver
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                   <OrderChecklist
                     order={selectedOrder}
                     refreshKey={checklistRefreshKey}
                   />
-                  {/* Upload section */}
+
+                  {/* Standard Upload section */}
                   <div className="border rounded-lg p-4 bg-white">
                     <h4 className="font-bold mb-4">
                       Enviar Arquivos / Entregáveis
@@ -1072,7 +1157,7 @@ export default function Admin() {
                       </div>
 
                       <Button
-                        onClick={handleUploadDeliverables}
+                        onClick={() => handleUploadDeliverables(false)}
                         disabled={isUploading}
                         className="w-full"
                       >
@@ -1097,7 +1182,6 @@ export default function Admin() {
             <DialogHeader>
               <DialogTitle>Editar Projeto</DialogTitle>
             </DialogHeader>
-            {/* Project edit form */}
             <div className="space-y-4">
               <Label>Título</Label>
               <Input

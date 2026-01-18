@@ -2,27 +2,59 @@ import {
   FileText,
   Image as ImageIcon,
   Download,
-  ExternalLink,
+  Trash2,
+  Loader2,
 } from 'lucide-react'
+import { useState } from 'react'
 import { format } from 'date-fns'
-import { Order } from '@/services/ordersService'
+import { Order, ordersService } from '@/services/ordersService'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { useToast } from '@/hooks/use-toast'
 
 interface OrderFilesProps {
   order: Order
+  onRefresh?: () => void
 }
 
-export function OrderFiles({ order }: OrderFilesProps) {
+export function OrderFiles({ order, onRefresh }: OrderFilesProps) {
+  const { toast } = useToast()
   const photos = order.photos || []
   const deliverables = order.deliverables || []
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   // Sort deliverables by created_at descending (newest first)
   const sortedDeliverables = [...deliverables].sort(
     (a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   )
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id)
+    try {
+      const { error } = await ordersService.deleteDeliverable(id)
+      if (error) throw error
+
+      toast({ title: 'Arquivo removido com sucesso' })
+      if (onRefresh) onRefresh()
+    } catch (e) {
+      toast({ title: 'Erro ao remover arquivo', variant: 'destructive' })
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -60,7 +92,7 @@ export function OrderFiles({ order }: OrderFilesProps) {
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          <ExternalLink className="h-4 w-4" />
+                          <Download className="h-4 w-4" />
                         </a>
                       </Button>
                     </div>
@@ -116,21 +148,62 @@ export function OrderFiles({ order }: OrderFilesProps) {
                         </p>
                       </div>
                     </div>
-                    <Button
-                      asChild
-                      size="sm"
-                      variant="ghost"
-                      className="shrink-0 ml-2"
-                    >
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Baixar/Visualizar"
+
+                    <div className="flex items-center gap-1">
+                      <Button
+                        asChild
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
                       >
-                        <Download className="h-4 w-4" />
-                      </a>
-                    </Button>
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Baixar/Visualizar"
+                        >
+                          <Download className="h-4 w-4" />
+                        </a>
+                      </Button>
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            disabled={deletingId === item.id}
+                          >
+                            {deletingId === item.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              Excluir arquivo?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Isso removerá permanentemente o arquivo "
+                              {item.title}". O cliente não poderá mais
+                              acessá-lo.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(item.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Excluir
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
                 ))}
               </div>

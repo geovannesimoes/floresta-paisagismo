@@ -10,7 +10,6 @@ import {
   Check,
 } from 'lucide-react'
 import Autoplay from 'embla-carousel-autoplay'
-import Fade from 'embla-carousel-fade'
 
 import { Button } from '@/components/ui/button'
 import { ProjectCard } from '@/components/ProjectCard'
@@ -58,6 +57,11 @@ export default function Index() {
       const { data: slidesData } = await heroSlidesService.getSlides(true)
       if (slidesData) {
         setHeroSlides(slidesData)
+        // Preload images
+        slidesData.forEach((slide) => {
+          const img = new Image()
+          img.src = slide.image_url
+        })
       }
     }
     loadData()
@@ -99,18 +103,18 @@ export default function Index() {
 
   return (
     <div className="flex flex-col bg-background font-body">
-      {/* 1. Hero Section (Background Carousel + Static Overlay) */}
+      {/* 1. Hero Section (Carousel + Static Overlay) */}
       <section className="relative min-h-[90vh] overflow-hidden flex items-center justify-center">
         {/* Background Layer */}
-        <div className="absolute inset-0 z-0">
+        <div className="absolute inset-0 z-0 bg-black/40">
           {showCarousel ? (
             <Carousel
               opts={{
                 loop: true,
-                duration: 60,
-                watchDrag: false, // Disable user drag for background
+                duration: 60, // Smooth slide
+                watchDrag: false,
               }}
-              plugins={[Autoplay({ delay: 5000 }), Fade()]}
+              plugins={[Autoplay({ delay: 3500, stopOnInteraction: false })]}
               className="w-full h-full"
             >
               <CarouselContent className="h-[90vh] ml-0">

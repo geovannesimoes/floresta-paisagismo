@@ -2,10 +2,7 @@ import { supabase } from '@/lib/supabase/client'
 import { PLAN_DETAILS, PlanName } from '@/lib/plan-constants'
 import { emailService } from '@/services/emailService'
 
-// ... existing interfaces ... (Using existing interfaces, imports are sufficient)
-
-// Redefine interfaces for clarity in this file context if needed, but assuming global scope from previous context
-// For brevity, I'm extending the existing file content
+// ... (previous interfaces) ...
 
 export interface OrderChecklistItem {
   id: string
@@ -15,6 +12,15 @@ export interface OrderChecklistItem {
   sort_order: number
   created_at?: string
   updated_at?: string
+}
+
+export interface OrderDeliverable {
+  id: string
+  order_id: string
+  title: string
+  url: string
+  type: string
+  created_at: string
 }
 
 export interface Order {
@@ -45,7 +51,7 @@ export interface Order {
   delivered_at?: string
   delivery_deadline_days?: number
   photos?: any[]
-  deliverables?: any[]
+  deliverables?: OrderDeliverable[]
   revisions?: any[]
 }
 
@@ -68,7 +74,6 @@ interface CreateOrderParams {
 
 export const ordersService = {
   // ... existing methods ...
-
   async createOrder(order: CreateOrderParams) {
     const { data, error } = await supabase.rpc('create_order_and_return', {
       p_client_name: order.client_name,
@@ -88,12 +93,6 @@ export const ordersService = {
 
     if (error) return { data: null, error }
     const createdOrder = Array.isArray(data) ? data[0] : data
-
-    // Notify Admin of New Order (Manually created via frontend flow, e.g. test)
-    // Note: Usually handled by Webhook on payment, but good to have here if payment skipped or testing
-    // We will rely on webhook for "Paid" notification.
-    // If we want "Created" notification, we can add:
-    // emailService.sendEmail({ template: 'new_order_admin', to: 'ADMINS', data: createdOrder, relatedOrderId: createdOrder.id });
 
     return { data: createdOrder as Order, error: null }
   },
@@ -204,7 +203,7 @@ export const ordersService = {
     return { data, error }
   },
 
-  // ... checklist methods (same as before) ...
+  // ... checklist methods ...
   async getChecklist(orderId: string) {
     const { data, error } = await supabase
       .from('order_checklist_items')
@@ -294,7 +293,7 @@ export const ordersService = {
         .from('revision_requests')
         .update({ status: 'Resolvido' })
         .eq('order_id', orderId)
-        .eq('status', 'Pendente')
+        .in('status', ['Pendente', 'Requested', 'open'])
 
       // 2. Notify Client
       const { data: order } = await supabase
@@ -316,18 +315,28 @@ export const ordersService = {
       .select('url')
       .eq('id', id)
       .single()
+
     if (item && item.url) {
       try {
         const urlObj = new URL(item.url)
-        const path = urlObj.pathname.split('/order-uploads/')[1]
-        if (path)
+        // Extract the path after the bucket name if using getPublicUrl result
+        // Example: https://.../storage/v1/object/public/order-uploads/deliverables/123/file.pdf
+        // We need: deliverables/123/file.pdf
+
+        // This regex tries to find the path after the bucket name in a standard Supabase URL
+        const pathMatch = urlObj.pathname.match(/\/order-uploads\/(.*)$/)
+        const path = pathMatch ? pathMatch[1] : null
+
+        if (path) {
           await supabase.storage
             .from('order-uploads')
             .remove([decodeURIComponent(path)])
+        }
       } catch (e) {
-        console.error(e)
+        console.error('Error removing file from storage:', e)
       }
     }
+
     const { error } = await supabase
       .from('order_deliverables')
       .delete()

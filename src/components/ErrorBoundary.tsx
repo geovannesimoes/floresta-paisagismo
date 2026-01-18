@@ -37,16 +37,16 @@ export class ErrorBoundary extends Component<Props, State> {
               Algo deu errado
             </h1>
             <p className="text-gray-500 mb-6">
-              Desculpe, ocorreu um erro inesperado na aplicação.
+              Ocorreu um erro inesperado. Tente recarregar a página.
             </p>
             {this.state.error && (
               <div className="bg-gray-100 p-3 rounded text-left text-xs text-gray-700 font-mono mb-6 overflow-auto max-h-32">
-                {this.state.error.toString()}
+                {this.state.error.message}
               </div>
             )}
             <div className="flex gap-3 justify-center">
               <Button onClick={() => window.location.reload()}>
-                <RefreshCw className="mr-2 h-4 w-4" /> Recarregar Página
+                <RefreshCw className="mr-2 h-4 w-4" /> Recarregar
               </Button>
               <Button
                 variant="outline"

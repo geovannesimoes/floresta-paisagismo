@@ -23,22 +23,21 @@ export default function AdminLogin() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
   const { toast } = useToast()
-  const { signIn, user } = useAuth()
+  const { signIn, user, loading } = useAuth()
   const { settings } = useSiteSettings()
 
   useEffect(() => {
-    // Only navigate when user state is actually present
-    if (user) {
+    // If already authenticated, redirect immediately
+    if (!loading && user) {
       navigate('/admin')
     }
-  }, [user, navigate])
+  }, [user, loading, navigate])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
 
     try {
-      // Auto-append domain if user enters just the username "geovanne"
       let loginEmail = email.trim()
       if (!loginEmail.includes('@')) {
         loginEmail = `${loginEmail}@viveirofloresta.com`
@@ -52,20 +51,31 @@ export default function AdminLogin() {
 
       toast({
         title: 'Acesso concedido',
-        description: 'Bem-vindo ao painel administrativo.',
+        description: 'Redirecionando...',
       })
-      // Navigation is handled by useEffect to ensure state is propagated
+
+      // Deterministic navigation after successful login
+      navigate('/admin')
     } catch (error: any) {
       toast({
         title: 'Falha no login',
         description: error.message || 'Verifique suas credenciais.',
         variant: 'destructive',
       })
-      setIsSubmitting(false) // Only reset on error
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  // Use dynamic logo from settings if available, else fallback
+  // Show loading state while checking session
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
   const logoUrl = settings?.logo_url || LOGO_URL
 
   return (

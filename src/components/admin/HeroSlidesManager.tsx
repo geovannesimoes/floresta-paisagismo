@@ -137,8 +137,7 @@ export function HeroSlidesManager() {
         <div>
           <CardTitle>Hero (Imagens de Fundo)</CardTitle>
           <CardDescription>
-            Gerencie as imagens que aparecem no carrossel de fundo. O texto é
-            fixo e configurado na seção "Hero (Texto Principal)".
+            Gerencie as imagens que aparecem no carrossel de fundo.
           </CardDescription>
         </div>
         <Button onClick={handleCreate} size="sm">
