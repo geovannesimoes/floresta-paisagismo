@@ -18,7 +18,6 @@ import {
   CardDescription,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
 import { authService, CustomerProfile } from '@/services/authService'
@@ -53,11 +52,20 @@ export default function AreaCliente() {
     currentOrderRef.current = currentOrder
   }, [currentOrder])
 
+  // Admin Session Protection
+  useEffect(() => {
+    if (user && user.email?.endsWith('@viveirofloresta.com')) {
+      signOut()
+    }
+  }, [user, signOut])
+
   useEffect(() => {
     let isMounted = true
 
     const loadUserData = async () => {
-      if (!user?.email) return
+      // Prevent admin emails from loading client data
+      if (!user?.email || user.email.endsWith('@viveirofloresta.com')) return
+
       if (isMounted) setLoadingProfile(true)
 
       try {

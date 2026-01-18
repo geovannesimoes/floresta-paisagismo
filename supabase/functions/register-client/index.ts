@@ -30,7 +30,8 @@ Deno.serve(async (req: Request) => {
     if (existingCpf) {
       return new Response(
         JSON.stringify({
-          error:
+          error_code: 'account_exists',
+          message:
             'Já existe uma conta cadastrada com este e-mail ou CPF. Faça login ou utilize "Esqueci minha senha".',
         }),
         {
@@ -60,7 +61,8 @@ Deno.serve(async (req: Request) => {
       if (createError.message?.includes('already been registered')) {
         return new Response(
           JSON.stringify({
-            error:
+            error_code: 'account_exists',
+            message:
               'Já existe uma conta cadastrada com este e-mail ou CPF. Faça login ou utilize "Esqueci minha senha".',
           }),
           {
@@ -90,12 +92,27 @@ Deno.serve(async (req: Request) => {
     if (profileError) {
       // Rollback user creation if profile fails (best effort)
       await supabase.auth.admin.deleteUser(userData.user.id)
+
+      // Check if profile error is due to unique constraint violation (race condition)
+      if (profileError.code === '23505') {
+        // Postgres unique_violation code
+        return new Response(
+          JSON.stringify({
+            error_code: 'account_exists',
+            message:
+              'Já existe uma conta cadastrada com este e-mail ou CPF. Faça login ou utilize "Esqueci minha senha".',
+          }),
+          {
+            status: 409,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          },
+        )
+      }
+
       throw profileError
     }
 
     // 5. Send Email (Simulated)
-    // In a production environment, use a real provider (Resend, etc).
-    // The logs here are for demonstration and verification in Supabase dashboard.
     console.log(`
       [EMAIL SENT]
       Subject: Bem-vindo(a) ao Viveiro Floresta

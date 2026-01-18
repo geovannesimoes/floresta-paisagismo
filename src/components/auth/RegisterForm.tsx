@@ -51,7 +51,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true)
     try {
-      const { error } = await authService.registerClient({
+      const { data, error } = await authService.registerClient({
         full_name: values.full_name,
         email: values.email,
         cpf: values.cpf.replace(/\D/g, ''),
@@ -59,11 +59,39 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
       })
 
       if (error) {
-        // Pass through the specific error message from edge function
+        // Special duplicate account handling
+        if (
+          error.error_code === 'account_exists' ||
+          (typeof error.message === 'string' &&
+            error.message.includes('account_exists'))
+        ) {
+          toast({
+            title: 'Conta já existe',
+            description:
+              'Você já possui uma conta cadastrada com este e-mail ou CPF. Faça login ou utilize "Esqueci a senha" para recuperar o acesso.',
+            variant: 'destructive',
+            duration: 8000,
+          })
+          return
+        }
+
+        // Pass through other errors
         if (error.message) {
           throw new Error(error.message)
         }
         throw new Error('Erro ao criar conta. Tente novamente mais tarde.')
+      }
+
+      // Handle structured error in data payload (edge case for manual fetch)
+      if (data && data.error_code === 'account_exists') {
+        toast({
+          title: 'Conta já existe',
+          description:
+            'Você já possui uma conta cadastrada com este e-mail ou CPF. Faça login ou utilize "Esqueci a senha" para recuperar o acesso.',
+          variant: 'destructive',
+          duration: 8000,
+        })
+        return
       }
 
       // Success Feedback - Privacy Focused (No temp password in UI)

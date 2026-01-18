@@ -122,6 +122,13 @@ export const ordersService = {
     return { data: data as Order[], error }
   },
 
+  async getOrderByCode(code: string) {
+    const { data, error } = await supabase.rpc('get_order_by_code', {
+      p_code: code,
+    })
+    return { data: data as Order[], error }
+  },
+
   async getClientOrder(email: string, code: string) {
     // Use the details RPC which returns relations as JSON
     const { data, error } = await supabase.rpc('get_client_order_details', {

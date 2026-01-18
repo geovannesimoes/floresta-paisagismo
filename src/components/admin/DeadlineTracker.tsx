@@ -1,5 +1,4 @@
 import { differenceInDays, format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 import { Clock, CalendarCheck, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { Order } from '@/services/ordersService'
 import { cn } from '@/lib/utils'

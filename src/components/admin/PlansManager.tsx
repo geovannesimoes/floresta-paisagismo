@@ -96,20 +96,7 @@ export function PlansManager() {
 
       // Handle features
       if (planId && features.length > 0) {
-        // Simple strategy: Delete all and re-create to maintain order and clean state
-        // In production, updating existing by ID is better, but this is simpler for MVP
-        // Wait, deleting all removes IDs. Let's try to update existing and add new.
-
-        // For simplicity in this UI, we will just delete all features of this plan and re-insert
-        // NOTE: This changes feature IDs. If that's an issue, we need more complex logic.
-        // Assuming features are just strings for display, new IDs are fine.
-
-        // Get existing to find what to delete? No, just delete all by planId
-        // But we need a bulk delete method or delete one by one.
-        // Let's use what we have.
-
-        // 1. Delete all features for this plan (we need a service method for bulk delete or just loop)
-        // We will assume features are manageable list.
+        // 1. Delete all features for this plan (simplification for ordering)
         if (editingPlan.features) {
           for (const f of editingPlan.features) {
             await plansService.deleteFeature(f.id)

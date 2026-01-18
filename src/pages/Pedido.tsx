@@ -1,19 +1,12 @@
 import { useState, useEffect } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Upload, X, Loader2, ArrowLeft, Check } from 'lucide-react'
+import { Check, Loader2, ArrowLeft, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Form,
   FormControl,
@@ -22,453 +15,377 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/hooks/use-toast'
 import { ordersService } from '@/services/ordersService'
-import { useSeo } from '@/hooks/use-seo'
+import { plansService, Plan } from '@/services/plansService'
 import { formatCpfCnpj, formatPhone } from '@/lib/utils'
-import { Plan } from '@/services/plansService'
 
 const formSchema = z.object({
-  nome: z.string().min(3, 'Nome muito curto'),
-  email: z.string().email('E-mail inválido'),
-  cpfCnpj: z.string().refine((val) => {
+  client_name: z.string().min(3, 'Nome muito curto'),
+  client_email: z.string().email('E-mail inválido'),
+  client_cpf_cnpj: z.string().refine((val) => {
     const digits = val.replace(/\D/g, '')
     return digits.length === 11 || digits.length === 14
-  }, 'CPF ou CNPJ inválido'),
-  whatsapp: z.string().refine((val) => {
+  }, 'CPF/CNPJ inválido'),
+  client_whatsapp: z.string().refine((val) => {
     const digits = val.replace(/\D/g, '')
-    return digits.length === 10 || digits.length === 11
+    return digits.length >= 10
   }, 'Número inválido'),
-  tipoImovel: z.string({ required_error: 'Selecione o tipo de imóvel' }),
-  medidas: z.string().optional(),
-  preferencias: z.string().optional(),
-  observacoes: z.string().optional(),
+  property_type: z.string().min(1, 'Selecione o tipo de imóvel'),
+  dimensions: z.string().optional(),
+  preferences: z.string().optional(),
+  notes: z.string().optional(),
 })
 
 export default function Pedido() {
-  useSeo({
-    title: 'Finalizar Pedido | Floresta Paisagismo',
-    description: 'Envie as informações do seu projeto e finalize seu pedido.',
-  })
-
-  const { state } = useLocation()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { toast } = useToast()
 
-  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null)
-  const [photos, setPhotos] = useState<File[]>([])
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [plan, setPlan] = useState<Plan | null>(null)
 
-  useEffect(() => {
-    if (state?.selectedPlan) {
-      setSelectedPlan(state.selectedPlan)
-    } else {
-      // Redirect if no plan selected
-      navigate('/planos')
-    }
-  }, [state, navigate])
+  const planSlug = searchParams.get('plan')
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      nome: '',
-      email: '',
-      cpfCnpj: '',
-      whatsapp: '',
-      medidas: '',
-      preferencias: '',
-      observacoes: '',
+      client_name: '',
+      client_email: '',
+      client_cpf_cnpj: '',
+      client_whatsapp: '',
+      property_type: '',
+      dimensions: '',
+      preferences: '',
+      notes: '',
     },
   })
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newPhotos = Array.from(e.target.files)
-      setPhotos([...photos, ...newPhotos])
-    }
-  }
-
-  const removePhoto = (index: number) => {
-    setPhotos(photos.filter((_, i) => i !== index))
-  }
-
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    if (!selectedPlan) return
-
-    if (photos.length === 0) {
-      toast({
-        title: 'Fotos necessárias',
-        description: 'Por favor, envie pelo menos uma foto do seu espaço.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    setIsSubmitting(true)
-
-    try {
-      // Create Order using Secure RPC with snapshot data
-      const { data: order, error } = await ordersService.createOrder({
-        client_name: values.nome,
-        client_email: values.email,
-        client_cpf_cnpj: values.cpfCnpj.replace(/\D/g, ''),
-        client_whatsapp: values.whatsapp.replace(/\D/g, ''),
-        property_type: values.tipoImovel,
-        dimensions: values.medidas,
-        preferences: values.preferencias,
-        notes: values.observacoes,
-        plan: selectedPlan.name, // Legacy field
-        status: 'Aguardando Pagamento',
-
-        // New Snapshot Fields
-        plan_id: selectedPlan.id,
-        plan_snapshot_name: selectedPlan.name,
-        plan_snapshot_price_cents: selectedPlan.price_cents,
-        plan_snapshot_features: selectedPlan.features?.map((f) => f.text) || [],
-      })
-
-      if (error || !order) {
-        throw error || new Error('Falha ao criar pedido')
+  useEffect(() => {
+    const loadPlan = async () => {
+      if (!planSlug) {
+        navigate('/planos')
+        return
       }
 
-      // Upload Photos using the internal ID (UUID)
-      const uploadPromises = photos.map((photo) =>
-        ordersService.uploadOrderPhoto(order.id, photo),
-      )
+      try {
+        const { data, error } = await plansService.getPlanBySlug(planSlug)
+        if (error || !data) {
+          toast({
+            title: 'Plano não encontrado',
+            description: 'Por favor selecione um plano válido.',
+            variant: 'destructive',
+          })
+          navigate('/planos')
+          return
+        }
+        setPlan(data)
+      } catch (e) {
+        console.error(e)
+        navigate('/planos')
+      } finally {
+        setLoading(false)
+      }
+    }
 
-      await Promise.all(uploadPromises)
+    loadPlan()
+  }, [planSlug, navigate, toast])
 
-      // Navigate passing necessary data for payment processing
-      navigate('/pagamento', {
-        state: {
-          orderId: order.id,
-          orderCode: order.code,
-          planName: selectedPlan.name,
-          priceCents: selectedPlan.price_cents, // Pass cents
-          clientEmail: values.email,
-        },
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!plan) return
+    setSubmitting(true)
+
+    try {
+      const { data, error } = await ordersService.createOrder({
+        ...values,
+        client_cpf_cnpj: values.client_cpf_cnpj.replace(/\D/g, ''),
+        client_whatsapp: values.client_whatsapp.replace(/\D/g, ''),
+        plan: plan.name,
+        plan_id: plan.id,
+        plan_snapshot_name: plan.name,
+        plan_snapshot_price_cents: plan.price_cents,
+        plan_snapshot_features: plan.features?.map((f) => f.text) || [],
       })
-    } catch (error: any) {
-      console.error(error)
+
+      if (error) throw error
+
+      if (data) {
+        navigate('/pagamento', {
+          state: {
+            orderId: data.id,
+            orderCode: data.code,
+            planName: plan.name,
+            priceCents: plan.price_cents,
+          },
+        })
+      }
+    } catch (e: any) {
       toast({
-        title: 'Erro ao enviar pedido',
-        description:
-          error.message ||
-          'Ocorreu um erro ao salvar seu pedido. Tente novamente.',
+        title: 'Erro ao criar pedido',
+        description: e.message,
         variant: 'destructive',
       })
     } finally {
-      setIsSubmitting(false)
+      setSubmitting(false)
     }
   }
 
-  if (!selectedPlan) return null
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin h-8 w-8 text-primary" />
+      </div>
+    )
+  }
+
+  if (!plan) return null
 
   return (
-    <div className="pt-32 pb-16 min-h-screen bg-stone-50">
-      <div className="container mx-auto px-4 max-w-6xl">
+    <div className="min-h-screen bg-gray-50 pb-20 pt-24 font-body">
+      <div className="container mx-auto px-4 max-w-5xl">
         <Button
           variant="ghost"
           onClick={() => navigate('/planos')}
-          className="mb-8 pl-0 hover:bg-transparent hover:text-primary transition-colors"
+          className="mb-6 hover:bg-gray-200"
         >
           <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para Planos
         </Button>
 
-        <div className="mb-8">
-          <h1 className="text-3xl font-heading font-bold text-foreground">
-            Vamos começar seu projeto
-          </h1>
-          <p className="text-muted-foreground mt-2 text-lg">
-            Preencha os detalhes abaixo para personalizarmos seu jardim.
-          </p>
-        </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
-            <div className="bg-white p-6 md:p-10 rounded-2xl shadow-sm border border-border">
-              <Form {...form}>
-                <form
-                  onSubmit={form.handleSubmit(onSubmit)}
-                  className="space-y-8"
-                >
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                      control={form.control}
-                      name="nome"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Nome Completo</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Seu nome" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>E-mail</FormLabel>
-                          <FormControl>
-                            <Input placeholder="seu@email.com" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                      control={form.control}
-                      name="cpfCnpj"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>CPF/CNPJ</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="CPF ou CNPJ"
-                              {...field}
-                              onChange={(e) => {
-                                field.onChange(formatCpfCnpj(e.target.value))
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="whatsapp"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>WhatsApp</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="(XX) XXXXX-XXXX"
-                              {...field}
-                              onChange={(e) => {
-                                field.onChange(formatPhone(e.target.value))
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                      control={form.control}
-                      name="tipoImovel"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Tipo do Imóvel</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                          >
+          {/* Left Column - Form */}
+          <div className="lg:col-span-2 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Seus Dados</CardTitle>
+                <CardDescription>
+                  Precisamos dessas informações para criar seu projeto.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Form {...form}>
+                  <form
+                    onSubmit={form.handleSubmit(onSubmit)}
+                    className="space-y-6"
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="client_name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nome Completo</FormLabel>
                             <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecione..." />
-                              </SelectTrigger>
+                              <Input placeholder="Seu nome" {...field} />
                             </FormControl>
-                            <SelectContent>
-                              <SelectItem value="Casa">Casa</SelectItem>
-                              <SelectItem value="Apartamento">
-                                Apartamento
-                              </SelectItem>
-                              <SelectItem value="Loja">Loja</SelectItem>
-                              <SelectItem value="Terreno">Terreno</SelectItem>
-                              <SelectItem value="Chácara">Chácara</SelectItem>
-                              <SelectItem value="Outro">Outro</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <FormField
-                    control={form.control}
-                    name="medidas"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Medidas Aproximadas (Opcional)</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Ex: 10m x 5m, ou 'quintal pequeno em L'"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="preferencias"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Preferências e Estilo (Opcional)</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Ex: Quero um jardim tropical com rede, pouca manutenção, gosto de cores vibrantes..."
-                            className="min-h-[100px]"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Upload Section */}
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <FormLabel className="text-base">
-                        Fotos do Espaço
-                      </FormLabel>
-                      <span className="text-xs text-muted-foreground">
-                        Mínimo 1 foto
-                      </span>
-                    </div>
-
-                    <div className="border-2 border-dashed border-input rounded-xl p-8 text-center hover:bg-accent/30 transition-colors relative bg-stone-50">
-                      <Input
-                        type="file"
-                        multiple
-                        accept="image/*"
-                        onChange={handlePhotoUpload}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                      <div className="flex flex-col items-center justify-center pointer-events-none">
-                        <div className="bg-white p-3 rounded-full shadow-sm mb-4">
-                          <Upload className="h-6 w-6 text-primary" />
-                        </div>
-                        <p className="font-medium text-foreground">
-                          Clique ou arraste fotos aqui
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Procure mostrar vários ângulos do local
-                        </p>
-                      </div>
+                      <FormField
+                        control={form.control}
+                        name="client_email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>E-mail</FormLabel>
+                            <FormControl>
+                              <Input placeholder="seu@email.com" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="client_cpf_cnpj"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>CPF / CNPJ</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="000.000.000-00"
+                                {...field}
+                                onChange={(e) =>
+                                  field.onChange(formatCpfCnpj(e.target.value))
+                                }
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="client_whatsapp"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>WhatsApp</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="(00) 00000-0000"
+                                {...field}
+                                onChange={(e) =>
+                                  field.onChange(formatPhone(e.target.value))
+                                }
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
 
-                    {photos.length > 0 && (
-                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 mt-4">
-                        {photos.map((photo, index) => (
-                          <div
-                            key={index}
-                            className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100 border shadow-sm"
-                          >
-                            <img
-                              src={URL.createObjectURL(photo)}
-                              alt="Preview"
-                              className="w-full h-full object-cover"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removePhoto(index)}
-                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                    <Separator className="my-4" />
 
-                  <div className="block lg:hidden">
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-lg">Sobre o Projeto</h3>
+
+                      <FormField
+                        control={form.control}
+                        name="property_type"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Tipo de Imóvel</FormLabel>
+                            <FormControl>
+                              <select
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                {...field}
+                              >
+                                <option value="">Selecione...</option>
+                                <option value="Casa">Casa</option>
+                                <option value="Apartamento">
+                                  Apartamento (Varanda)
+                                </option>
+                                <option value="Comercial">Comercial</option>
+                                <option value="Sítio/Chácara">
+                                  Sítio / Chácara
+                                </option>
+                              </select>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="dimensions"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              Dimensões Aproximadas (Opcional)
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Ex: 50m², 10x5m..."
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="notes"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              Observações Iniciais (Opcional)
+                            </FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Conte um pouco sobre o que você deseja..."
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
                     <Button
                       type="submit"
-                      className="w-full text-lg h-14 rounded-full font-bold shadow-lg"
-                      disabled={isSubmitting}
+                      className="w-full text-lg h-12 mt-6"
+                      disabled={submitting}
                     >
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />{' '}
-                          Processando...
-                        </>
+                      {submitting ? (
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                       ) : (
                         'Ir para Pagamento'
                       )}
                     </Button>
-                  </div>
-                </form>
-              </Form>
-            </div>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Summary Card */}
+          {/* Right Column - Summary */}
           <div className="lg:col-span-1">
-            <div className="sticky top-24 space-y-6">
-              <Card className="shadow-lg border-primary/20 overflow-hidden">
-                <CardHeader className="bg-primary/5 pb-4 border-b">
-                  <CardTitle className="text-lg text-primary">
-                    Resumo do Pedido
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="font-bold text-xl">
-                        Projeto {selectedPlan.name}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        {selectedPlan.description}
-                      </p>
-                    </div>
+            <Card className="sticky top-24 border-primary/20 shadow-md">
+              <CardHeader className="bg-primary/5 border-b pb-4">
+                <CardTitle className="text-xl">Resumo do Pedido</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-bold text-lg">{plan.name}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {plan.description}
+                    </p>
                   </div>
+                  <div className="text-right">
+                    <span className="block font-bold text-xl text-primary">
+                      R$ {(plan.price_cents / 100).toFixed(2).replace('.', ',')}
+                    </span>
+                  </div>
+                </div>
 
-                  <div className="space-y-3 mb-6">
-                    {selectedPlan.features?.slice(0, 4).map((feature, idx) => (
-                      <div key={idx} className="flex items-start gap-2 text-sm">
-                        <Check className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                        <span>{feature.text}</span>
-                      </div>
+                <Separator />
+
+                <div>
+                  <h4 className="font-semibold mb-3 text-sm uppercase tracking-wide text-gray-500">
+                    Incluso no Pacote:
+                  </h4>
+                  {/* Full Feature List - No Truncation */}
+                  <ul className="space-y-3">
+                    {plan.features?.map((feature) => (
+                      <li
+                        key={feature.id}
+                        className="flex items-start gap-3 text-sm"
+                      >
+                        <div className="mt-0.5 rounded-full bg-green-100 p-1">
+                          <Check className="h-3 w-3 text-green-600" />
+                        </div>
+                        <span className="text-gray-700 leading-tight">
+                          {feature.text}
+                        </span>
+                      </li>
                     ))}
-                  </div>
-
-                  <div className="flex justify-between items-end border-t pt-4 mb-6">
-                    <span className="font-medium text-muted-foreground">
-                      Total
-                    </span>
-                    <span className="text-3xl font-bold text-foreground">
-                      R${' '}
-                      {(selectedPlan.price_cents / 100)
-                        .toFixed(2)
-                        .replace('.', ',')}
-                    </span>
-                  </div>
-
-                  <Button
-                    onClick={form.handleSubmit(onSubmit)}
-                    className="w-full text-lg h-12 rounded-full font-bold shadow-md"
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      'Comprar Agora'
-                    )}
-                  </Button>
-
-                  <p className="text-xs text-center text-muted-foreground mt-4">
-                    Pagamento seguro via PIX ou Cartão
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+                  </ul>
+                </div>
+              </CardContent>
+              <CardFooter className="bg-gray-50 border-t p-4">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground mx-auto">
+                  <ShieldCheck className="h-4 w-4 text-green-600" />
+                  Pagamento 100% Seguro via Asaas
+                </div>
+              </CardFooter>
+            </Card>
           </div>
         </div>
       </div>

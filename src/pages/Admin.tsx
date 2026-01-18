@@ -149,6 +149,20 @@ export default function Admin() {
     setLoading(false)
   }
 
+  const refreshSelectedOrder = async (orderId: string) => {
+    try {
+      // Full refetch as requested in user story
+      const { data } = await ordersService.getOrderWithRelations(orderId)
+      if (data) {
+        setSelectedOrder(data)
+        // Also update the main list to reflect any status/cache changes
+        setOrders((prev) => prev.map((o) => (o.id === orderId ? data : o)))
+      }
+    } catch (e) {
+      console.error('Error refreshing order', e)
+    }
+  }
+
   const handleLogout = async () => {
     await signOut()
     navigate('/admin/login')
@@ -266,7 +280,6 @@ export default function Admin() {
   const handleUpdateOrderStatus = async (status: string) => {
     if (!selectedOrder) return
 
-    // Pass current order to calculate side effects (timestamps)
     const { data: updatedOrder } = await ordersService.updateOrderStatus(
       selectedOrder.id,
       status,
@@ -274,11 +287,7 @@ export default function Admin() {
     )
 
     if (updatedOrder) {
-      setSelectedOrder(updatedOrder)
-      // Update the list view as well
-      setOrders(
-        orders.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)),
-      )
+      await refreshSelectedOrder(updatedOrder.id)
     }
     toast({ title: 'Status atualizado' })
   }
@@ -303,20 +312,15 @@ export default function Admin() {
       )
 
       const results = await Promise.all(uploadPromises)
-
-      const successfulUploads = results
-        .filter((r) => r.data)
-        .map((r) => r.data!)
+      const successfulUploads = results.filter((r) => r.data)
 
       if (successfulUploads.length > 0) {
-        setSelectedOrder({
-          ...selectedOrder,
-          deliverables: [
-            ...(selectedOrder.deliverables || []),
-            ...successfulUploads,
-          ],
+        // Full refetch to ensure UI is synchronized
+        await refreshSelectedOrder(selectedOrder.id)
+
+        toast({
+          title: `${successfulUploads.length} arquivo(s) enviado(s)!`,
         })
-        toast({ title: `${successfulUploads.length} arquivo(s) enviado(s)!` })
         setDeliverableFiles([])
         setDeliverableCategory('')
         setDeliverableCustomTitle('')
@@ -326,12 +330,9 @@ export default function Admin() {
           selectedOrder.id,
         )
         if (checklist) {
-          // Direct mapping based on category name
-          // The category selected matches the checklist item text almost exactly in most cases
           const targetItem = checklist.find((i) => i.text === titleToUse)
           if (targetItem && !targetItem.is_done) {
             await ordersService.toggleChecklistItem(targetItem.id, true)
-            // Trigger refresh in child component
             setChecklistRefreshKey((prev) => prev + 1)
             toast({
               title: 'Checklist atualizado',
@@ -352,11 +353,7 @@ export default function Admin() {
     try {
       const { error } = await ordersService.deleteDeliverable(id)
       if (error) throw error
-
-      setSelectedOrder({
-        ...selectedOrder,
-        deliverables: selectedOrder.deliverables?.filter((d) => d.id !== id),
-      })
+      await refreshSelectedOrder(selectedOrder.id)
       toast({ title: 'Arquivo removido' })
     } catch (e) {
       toast({ title: 'Erro ao remover arquivo', variant: 'destructive' })
@@ -365,26 +362,20 @@ export default function Admin() {
 
   // --- HELPERS ---
   const getOrderPlanDetails = (order: Order) => {
-    // Prefer snapshot data if available
     if (
       order.plan_snapshot_price_cents !== undefined &&
       order.plan_snapshot_name
     ) {
       return {
         price: (order.plan_snapshot_price_cents / 100).toFixed(2),
-        checklist: order.plan_snapshot_features || DELIVERABLE_CATEGORIES,
       }
     }
-
-    // Fallback to legacy static or just display nothing specialized
     return {
       price: order.price ? order.price.toFixed(2) : '?',
-      checklist: DELIVERABLE_CATEGORIES,
     }
   }
 
   const renderDeadlineCell = (order: Order) => {
-    // If order status is not "Recebido" or similar active state, show waiting
     if (
       !order.status.toLowerCase().includes('recebido') &&
       !order.status.toLowerCase().includes('produção') &&
@@ -393,7 +384,6 @@ export default function Admin() {
       return <span className="text-muted-foreground">—</span>
     }
 
-    // If completed
     if (order.status.toLowerCase().includes('enviado') || order.delivered_at) {
       return (
         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -402,7 +392,6 @@ export default function Admin() {
       )
     }
 
-    // If active (Paid/In Production)
     if (order.paid_at) {
       const startDate = new Date(order.paid_at)
       const deadlineDays = order.delivery_deadline_days || 7
@@ -541,7 +530,8 @@ export default function Admin() {
                               size="sm"
                               variant="ghost"
                               onClick={() => {
-                                setSelectedOrder(order)
+                                // Full fetch on open to ensure latest data
+                                refreshSelectedOrder(order.id)
                                 setDeliverableFiles([])
                                 setDeliverableCategory('')
                                 setIsOrderDialogOpen(true)
@@ -1050,22 +1040,30 @@ export default function Admin() {
                   {/* Deadline Tracker Component */}
                   <DeadlineTracker order={selectedOrder} />
 
+                  {/* Always Visible Photos - Per User Story 6 */}
                   <div>
                     <h4 className="font-bold mb-2">Fotos Enviadas</h4>
                     <div className="grid grid-cols-3 gap-2">
-                      {selectedOrder.photos?.map((p) => (
-                        <a
-                          key={p.id}
-                          href={p.url}
-                          target="_blank"
-                          className="block aspect-square bg-gray-100 rounded overflow-hidden"
-                        >
-                          <img
-                            src={p.url}
-                            className="w-full h-full object-cover"
-                          />
-                        </a>
-                      ))}
+                      {selectedOrder.photos &&
+                      selectedOrder.photos.length > 0 ? (
+                        selectedOrder.photos.map((p) => (
+                          <a
+                            key={p.id}
+                            href={p.url}
+                            target="_blank"
+                            className="block aspect-square bg-gray-100 rounded overflow-hidden"
+                          >
+                            <img
+                              src={p.url}
+                              className="w-full h-full object-cover"
+                            />
+                          </a>
+                        ))
+                      ) : (
+                        <p className="col-span-3 text-sm text-muted-foreground italic">
+                          Nenhuma foto enviada pelo cliente.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1137,32 +1135,40 @@ export default function Admin() {
                       </Button>
                     </div>
 
+                    {/* Always Visible Deliverables - Per User Story 6 */}
                     <div className="mt-4 space-y-2">
-                      {selectedOrder.deliverables?.map((d) => (
-                        <div
-                          key={d.id}
-                          className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded"
-                        >
-                          <span className="truncate flex-1 pr-2">
-                            {d.title}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <a
-                              href={d.url}
-                              target="_blank"
-                              className="text-blue-600 hover:underline flex items-center gap-1"
-                            >
-                              <Eye className="h-3 w-3" /> Ver
-                            </a>
-                            <button
-                              onClick={() => handleDeleteDeliverable(d.id)}
-                              className="text-red-500 hover:text-red-700 flex items-center gap-1 ml-2"
-                            >
-                              <Trash className="h-3 w-3" /> Excluir
-                            </button>
+                      {selectedOrder.deliverables &&
+                      selectedOrder.deliverables.length > 0 ? (
+                        selectedOrder.deliverables.map((d) => (
+                          <div
+                            key={d.id}
+                            className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded"
+                          >
+                            <span className="truncate flex-1 pr-2">
+                              {d.title}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <a
+                                href={d.url}
+                                target="_blank"
+                                className="text-blue-600 hover:underline flex items-center gap-1"
+                              >
+                                <Eye className="h-3 w-3" /> Ver
+                              </a>
+                              <button
+                                onClick={() => handleDeleteDeliverable(d.id)}
+                                className="text-red-500 hover:text-red-700 flex items-center gap-1 ml-2"
+                              >
+                                <Trash className="h-3 w-3" /> Excluir
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic mt-4">
+                          Nenhum arquivo entregue ainda.
+                        </p>
+                      )}
                     </div>
                   </div>
 
