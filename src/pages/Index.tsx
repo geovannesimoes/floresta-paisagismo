@@ -284,28 +284,24 @@ export default function Index() {
               {activePlans.slice(0, 3).map((plan) => (
                 <div
                   key={plan.id}
-                  className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 hover:bg-white/20 transition-all text-left"
+                  className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 hover:bg-white/20 transition-all text-left flex flex-col"
                 >
                   <h3 className="font-bold text-xl mb-1">{plan.name}</h3>
                   <div className="text-2xl font-bold mb-4">
                     R$ {(plan.price_cents / 100).toFixed(2).replace('.', ',')}
                   </div>
-                  <ul className="space-y-2 mb-6 text-sm opacity-90">
-                    {plan.features?.slice(0, 3).map((feature, i) => (
+                  <ul className="space-y-2 mb-6 text-sm opacity-90 flex-grow">
+                    {/* Show ALL features as per requirement, no slice */}
+                    {plan.features?.map((feature, i) => (
                       <li key={i} className="flex items-start gap-2">
                         <Check className="h-4 w-4 shrink-0 mt-0.5 text-accent" />
                         <span>{feature.text}</span>
                       </li>
                     ))}
-                    {(plan.features?.length || 0) > 3 && (
-                      <li className="text-xs italic pl-6">
-                        + outros benefícios
-                      </li>
-                    )}
                   </ul>
                   <Button
                     asChild
-                    className="w-full bg-white text-primary hover:bg-white/90 font-bold"
+                    className="w-full bg-white text-primary hover:bg-white/90 font-bold mt-auto"
                   >
                     <Link to="/pedido" state={{ selectedPlan: plan }}>
                       Escolher {plan.name}

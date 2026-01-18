@@ -51,28 +51,36 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true)
     try {
-      const { data, error } = await authService.registerClient({
+      const { error } = await authService.registerClient({
         full_name: values.full_name,
         email: values.email,
         cpf: values.cpf.replace(/\D/g, ''),
         whatsapp: values.whatsapp.replace(/\D/g, ''),
       })
 
-      if (error) throw new Error(error.message || 'Erro ao criar conta')
+      if (error) {
+        // Handle Edge Function Custom Errors (409 Conflict)
+        if (error.message) {
+          throw new Error(error.message)
+        }
+        throw new Error('Erro ao criar conta. Tente novamente mais tarde.')
+      }
 
+      // Success Feedback - Privacy Focused (No temp password in UI)
       toast({
-        title: 'Conta criada com sucesso!',
-        description: data.tempPassword
-          ? `Senha temporária: ${data.tempPassword} (Use para entrar)`
-          : 'Verifique seu e-mail para a senha temporária.',
+        title: 'Sucesso!',
+        description:
+          'Conta criada com sucesso. Enviamos uma senha temporária para o seu e-mail.',
+        duration: 6000,
       })
 
       onSuccess()
     } catch (e: any) {
       toast({
-        title: 'Erro no cadastro',
+        title: 'Atenção',
         description: e.message,
         variant: 'destructive',
+        duration: 5000,
       })
     } finally {
       setLoading(false)
