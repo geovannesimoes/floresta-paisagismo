@@ -303,7 +303,7 @@ export default function Index() {
                     asChild
                     className="w-full bg-white text-primary hover:bg-white/90 font-bold mt-auto"
                   >
-                    <Link to="/pedido" state={{ selectedPlan: plan }}>
+                    <Link to={`/pedido?plan=${plan.slug}`}>
                       Escolher {plan.name}
                     </Link>
                   </Button>

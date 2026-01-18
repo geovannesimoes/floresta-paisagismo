@@ -93,7 +93,7 @@ export function PlanComparisonTable({ plans }: PlanComparisonTableProps) {
                     : 'border-2 hover:border-primary hover:text-primary',
                 )}
               >
-                <Link to="/pedido" state={{ selectedPlan: plan }}>
+                <Link to={`/pedido?plan=${plan.slug}`}>
                   {plan.cta || 'Escolher Plano'}
                 </Link>
               </Button>
