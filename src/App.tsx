@@ -10,6 +10,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import Layout from './components/Layout'
 import { AuthProvider } from './hooks/use-auth'
 import { SiteSettingsProvider } from './hooks/use-site-settings'
+import { ErrorBoundary } from './components/ErrorBoundary' // Added
 
 import Index from './pages/Index'
 import Planos from './pages/Planos'
@@ -59,11 +60,19 @@ const router = createBrowserRouter([
       },
       {
         path: '/admin',
-        element: <Admin />,
+        element: (
+          <ErrorBoundary>
+            <Admin />
+          </ErrorBoundary>
+        ),
       },
       {
         path: '/admin/login',
-        element: <AdminLogin />,
+        element: (
+          <ErrorBoundary>
+            <AdminLogin />
+          </ErrorBoundary>
+        ),
       },
       {
         path: '*',

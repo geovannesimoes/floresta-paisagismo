@@ -9,12 +9,22 @@ import {
   Image as ImageIcon,
   Check,
 } from 'lucide-react'
+import Autoplay from 'embla-carousel-autoplay'
+
 import { Button } from '@/components/ui/button'
 import { ProjectCard } from '@/components/ProjectCard'
 import { projectsService, Project } from '@/services/projectsService'
 import { plansService, Plan } from '@/services/plansService'
 import { useSiteSettings } from '@/hooks/use-site-settings'
 import { useSeo } from '@/hooks/use-seo'
+import { heroSlidesService, HeroSlide } from '@/services/heroSlidesService'
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from '@/components/ui/carousel'
 
 export default function Index() {
   const { settings } = useSiteSettings()
@@ -29,6 +39,8 @@ export default function Index() {
 
   const [featuredProjects, setFeaturedProjects] = useState<Project[]>([])
   const [activePlans, setActivePlans] = useState<Plan[]>([])
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([])
+  const [loadingSlides, setLoadingSlides] = useState(true)
 
   useEffect(() => {
     const loadData = async () => {
@@ -43,6 +55,13 @@ export default function Index() {
       if (plansData) {
         setActivePlans(plansData)
       }
+
+      // Load Hero Slides
+      const { data: slidesData } = await heroSlidesService.getSlides(true)
+      if (slidesData) {
+        setHeroSlides(slidesData)
+      }
+      setLoadingSlides(false)
     }
     loadData()
   }, [])
@@ -76,6 +95,9 @@ export default function Index() {
     },
   ]
 
+  // Fallback to static settings if no slides
+  const showCarousel = heroSlides.length > 0
+
   const heroImage =
     settings?.hero_image_url ||
     'https://img.usecurling.com/p/1920/1080?q=luxury%20tropical%20garden&dpr=2'
@@ -83,54 +105,126 @@ export default function Index() {
   return (
     <div className="flex flex-col bg-background font-body">
       {/* 1. Hero Section */}
-      <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 z-0">
-          <img
-            src={heroImage}
-            alt="Jardim exuberante"
-            className="w-full h-full object-cover brightness-[0.55]"
-          />
-        </div>
-
-        <div className="relative z-10 container mx-auto px-4 text-center text-white pt-20">
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-heading font-bold mb-8 animate-fade-in-up leading-tight tracking-tight">
-            {settings?.hero_title || (
+      {showCarousel ? (
+        <section className="relative min-h-[90vh] overflow-hidden">
+          <Carousel
+            opts={{
+              loop: true,
+              duration: 60,
+            }}
+            plugins={[
+              Autoplay({
+                delay: 5000,
+              }),
+            ]}
+            className="w-full h-full"
+          >
+            <CarouselContent className="h-[90vh] ml-0">
+              {heroSlides.map((slide) => (
+                <CarouselItem
+                  key={slide.id}
+                  className="relative pl-0 h-full w-full"
+                >
+                  <div className="absolute inset-0 z-0">
+                    <img
+                      src={slide.image_url}
+                      alt={slide.title || 'Slide'}
+                      className="w-full h-full object-cover brightness-[0.55]"
+                    />
+                  </div>
+                  <div className="relative z-10 h-full flex flex-col items-center justify-center text-center px-4 pt-20">
+                    <div className="container mx-auto">
+                      <h1 className="text-4xl md:text-6xl lg:text-7xl font-heading font-bold mb-8 animate-fade-in-up leading-tight tracking-tight text-white">
+                        {slide.title}
+                      </h1>
+                      <p className="text-lg md:text-2xl mb-12 text-white/90 max-w-3xl mx-auto animate-fade-in-up delay-100 font-light leading-relaxed">
+                        {slide.subtitle}
+                      </p>
+                      <div className="flex flex-col sm:flex-row gap-6 justify-center animate-fade-in-up delay-200">
+                        {slide.cta_text && (
+                          <Button
+                            asChild
+                            size="lg"
+                            className="bg-primary hover:bg-primary/90 text-white text-lg h-16 px-10 rounded-full shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-300 font-bold tracking-wide"
+                          >
+                            <Link to={slide.cta_href || '/planos'}>
+                              {slide.cta_text}
+                            </Link>
+                          </Button>
+                        )}
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="lg"
+                          className="bg-transparent border-2 border-white text-white hover:bg-white hover:text-primary text-lg h-16 px-10 rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 backdrop-blur-sm"
+                        >
+                          <Link to="/projetos">Ver Portfólio</Link>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            {heroSlides.length > 1 && (
               <>
-                Seu refúgio particular <br className="hidden md:block" />
-                começa com um bom projeto
+                <CarouselPrevious className="left-4 bg-white/10 hover:bg-white/30 border-none text-white hidden md:flex" />
+                <CarouselNext className="right-4 bg-white/10 hover:bg-white/30 border-none text-white hidden md:flex" />
               </>
             )}
-          </h1>
-          <p className="text-lg md:text-2xl mb-12 text-white/90 max-w-3xl mx-auto animate-fade-in-up delay-100 font-light leading-relaxed">
-            {settings?.hero_subtitle || (
-              <>
-                Paisagismo profissional, 100% online e acessível.
-                <br />
-                Transformamos seu espaço em um ambiente vivo e acolhedor.
-              </>
-            )}
-          </p>
-          <div className="flex flex-col sm:flex-row gap-6 justify-center animate-fade-in-up delay-200">
-            <Button
-              asChild
-              size="lg"
-              className="bg-primary hover:bg-primary/90 text-white text-lg h-16 px-10 rounded-full shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-300 font-bold tracking-wide"
-            >
-              <Link to={settings?.hero_button_link || '/planos'}>
-                {settings?.hero_button_text || 'Começar Transformação'}
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              size="lg"
-              className="bg-transparent border-2 border-white text-white hover:bg-white hover:text-primary text-lg h-16 px-10 rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 backdrop-blur-sm"
-            >
-              <Link to="/projetos">Ver Portfólio</Link>
-            </Button>
+          </Carousel>
+        </section>
+      ) : (
+        // Static Fallback
+        <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
+          <div className="absolute inset-0 z-0">
+            <img
+              src={heroImage}
+              alt="Jardim exuberante"
+              className="w-full h-full object-cover brightness-[0.55]"
+            />
           </div>
-        </div>
-      </section>
+
+          <div className="relative z-10 container mx-auto px-4 text-center text-white pt-20">
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-heading font-bold mb-8 animate-fade-in-up leading-tight tracking-tight">
+              {settings?.hero_title || (
+                <>
+                  Seu refúgio particular <br className="hidden md:block" />
+                  começa com um bom projeto
+                </>
+              )}
+            </h1>
+            <p className="text-lg md:text-2xl mb-12 text-white/90 max-w-3xl mx-auto animate-fade-in-up delay-100 font-light leading-relaxed">
+              {settings?.hero_subtitle || (
+                <>
+                  Paisagismo profissional, 100% online e acessível.
+                  <br />
+                  Transformamos seu espaço em um ambiente vivo e acolhedor.
+                </>
+              )}
+            </p>
+            <div className="flex flex-col sm:flex-row gap-6 justify-center animate-fade-in-up delay-200">
+              <Button
+                asChild
+                size="lg"
+                className="bg-primary hover:bg-primary/90 text-white text-lg h-16 px-10 rounded-full shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-300 font-bold tracking-wide"
+              >
+                <Link to={settings?.hero_button_link || '/planos'}>
+                  {settings?.hero_button_text || 'Começar Transformação'}
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
+                className="bg-transparent border-2 border-white text-white hover:bg-white hover:text-primary text-lg h-16 px-10 rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 backdrop-blur-sm"
+              >
+                <Link to="/projetos">Ver Portfólio</Link>
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* 2. How it works */}
       <section className="py-24 bg-white relative">
