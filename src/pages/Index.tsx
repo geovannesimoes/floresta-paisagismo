@@ -7,10 +7,12 @@ import {
   Sprout,
   TreePine,
   Image as ImageIcon,
+  Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ProjectCard } from '@/components/ProjectCard'
 import { projectsService, Project } from '@/services/projectsService'
+import { plansService, Plan } from '@/services/plansService'
 import { useSiteSettings } from '@/hooks/use-site-settings'
 import { useSeo } from '@/hooks/use-seo'
 
@@ -26,15 +28,23 @@ export default function Index() {
   })
 
   const [featuredProjects, setFeaturedProjects] = useState<Project[]>([])
+  const [activePlans, setActivePlans] = useState<Plan[]>([])
 
   useEffect(() => {
-    const loadProjects = async () => {
-      const { data } = await projectsService.getProjects(true)
-      if (data) {
-        setFeaturedProjects(data)
+    const loadData = async () => {
+      // Load Projects
+      const { data: projectsData } = await projectsService.getProjects(true)
+      if (projectsData) {
+        setFeaturedProjects(projectsData)
+      }
+
+      // Load Plans
+      const { data: plansData } = await plansService.getPlans(true)
+      if (plansData) {
+        setActivePlans(plansData)
       }
     }
-    loadProjects()
+    loadData()
   }, [])
 
   // Helper to extract before/after from media array
@@ -48,7 +58,6 @@ export default function Index() {
   }
 
   // 3-Step Visual Guide
-  // Updated text to be generic and compatible with dynamic plans
   const steps = [
     {
       icon: <Leaf className="h-10 w-10 text-primary" />,
@@ -268,13 +277,52 @@ export default function Index() {
             {settings?.cta_text ||
               'Não deixe para depois. Tenha o jardim dos seus sonhos com um projeto profissional, acessível e feito para você.'}
           </p>
+
+          {/* Plans Summary in CTA */}
+          {activePlans.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-12">
+              {activePlans.slice(0, 3).map((plan) => (
+                <div
+                  key={plan.id}
+                  className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 hover:bg-white/20 transition-all text-left"
+                >
+                  <h3 className="font-bold text-xl mb-1">{plan.name}</h3>
+                  <div className="text-2xl font-bold mb-4">
+                    R$ {(plan.price_cents / 100).toFixed(2).replace('.', ',')}
+                  </div>
+                  <ul className="space-y-2 mb-6 text-sm opacity-90">
+                    {plan.features?.slice(0, 3).map((feature, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <Check className="h-4 w-4 shrink-0 mt-0.5 text-accent" />
+                        <span>{feature.text}</span>
+                      </li>
+                    ))}
+                    {(plan.features?.length || 0) > 3 && (
+                      <li className="text-xs italic pl-6">
+                        + outros benefícios
+                      </li>
+                    )}
+                  </ul>
+                  <Button
+                    asChild
+                    className="w-full bg-white text-primary hover:bg-white/90 font-bold"
+                  >
+                    <Link to="/pedido" state={{ selectedPlan: plan }}>
+                      Escolher {plan.name}
+                    </Link>
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <Button
             asChild
             size="lg"
             className="bg-accent hover:bg-accent/90 text-primary font-bold text-xl h-16 px-12 rounded-full shadow-2xl hover:scale-105 transition-all duration-300"
           >
             <Link to={settings?.cta_button_link || '/planos'}>
-              {settings?.cta_button_text || 'Começar Agora'}
+              {settings?.cta_button_text || 'Ver todos os Planos'}
             </Link>
           </Button>
         </div>
