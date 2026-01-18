@@ -3,7 +3,13 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Check, Loader2, ArrowLeft, ShieldCheck } from 'lucide-react'
+import {
+  Check,
+  Loader2,
+  ArrowLeft,
+  ShieldCheck,
+  UploadCloud,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -14,6 +20,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form'
 import {
   Card,
@@ -44,6 +51,12 @@ const formSchema = z.object({
   dimensions: z.string().optional(),
   preferences: z.string().optional(),
   notes: z.string().optional(),
+  photos: z
+    .any()
+    .refine(
+      (files) => files && files.length > 0,
+      'Envie pelo menos uma foto do local.',
+    ),
 })
 
 export default function Pedido() {
@@ -53,6 +66,7 @@ export default function Pedido() {
 
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [uploadingPhotos, setUploadingPhotos] = useState(false)
   const [plan, setPlan] = useState<Plan | null>(null)
 
   const planSlug = searchParams.get('plan')
@@ -68,6 +82,7 @@ export default function Pedido() {
       dimensions: '',
       preferences: '',
       notes: '',
+      photos: undefined,
     },
   })
 
@@ -106,7 +121,8 @@ export default function Pedido() {
     setSubmitting(true)
 
     try {
-      const { data, error } = await ordersService.createOrder({
+      // 1. Create the Order
+      const { data: order, error } = await ordersService.createOrder({
         ...values,
         client_cpf_cnpj: values.client_cpf_cnpj.replace(/\D/g, ''),
         client_whatsapp: values.client_whatsapp.replace(/\D/g, ''),
@@ -118,25 +134,51 @@ export default function Pedido() {
       })
 
       if (error) throw error
+      if (!order) throw new Error('Erro ao criar pedido')
 
-      if (data) {
-        navigate('/pagamento', {
-          state: {
-            orderId: data.id,
-            orderCode: data.code,
-            planName: plan.name,
-            priceCents: plan.price_cents,
-          },
-        })
+      // 2. Upload Photos if order created successfully
+      if (values.photos && values.photos.length > 0) {
+        setUploadingPhotos(true)
+        const files = Array.from(values.photos as FileList)
+
+        // Upload concurrently
+        const uploadPromises = files.map((file) =>
+          ordersService.uploadOrderPhoto(order.id, file),
+        )
+
+        const results = await Promise.all(uploadPromises)
+
+        // Check for any upload errors (optional: could just log them)
+        const uploadErrors = results.filter((r) => r.error)
+        if (uploadErrors.length > 0) {
+          console.error('Some photos failed to upload:', uploadErrors)
+          toast({
+            title: 'Aviso',
+            description:
+              'Algumas fotos não puderam ser enviadas, mas seu pedido foi criado.',
+            variant: 'default',
+          })
+        }
       }
+
+      // 3. Navigate to Payment
+      navigate('/pagamento', {
+        state: {
+          orderId: order.id,
+          orderCode: order.code,
+          planName: plan.name,
+          priceCents: plan.price_cents,
+        },
+      })
     } catch (e: any) {
+      console.error(e)
       toast({
         title: 'Erro ao criar pedido',
-        description: e.message,
+        description: e.message || 'Ocorreu um erro inesperado.',
         variant: 'destructive',
       })
-    } finally {
       setSubmitting(false)
+      setUploadingPhotos(false)
     }
   }
 
@@ -297,6 +339,38 @@ export default function Pedido() {
                         )}
                       />
 
+                      {/* Photo Upload Field - Restored */}
+                      <FormField
+                        control={form.control}
+                        name="photos"
+                        render={({
+                          field: { value, onChange, ...fieldProps },
+                        }) => (
+                          <FormItem>
+                            <FormLabel>Fotos do Local (Obrigatório)</FormLabel>
+                            <FormControl>
+                              <div className="space-y-2">
+                                <Input
+                                  {...fieldProps}
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  className="cursor-pointer file:cursor-pointer"
+                                  onChange={(event) => {
+                                    onChange(event.target.files)
+                                  }}
+                                />
+                              </div>
+                            </FormControl>
+                            <FormDescription>
+                              Envie pelo menos uma foto. Quanto mais ângulos,
+                              melhor entenderemos seu espaço.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
                       <FormField
                         control={form.control}
                         name="notes"
@@ -323,7 +397,12 @@ export default function Pedido() {
                       disabled={submitting}
                     >
                       {submitting ? (
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        <>
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          {uploadingPhotos
+                            ? 'Enviando Fotos...'
+                            : 'Processando...'}
+                        </>
                       ) : (
                         'Ir para Pagamento'
                       )}
