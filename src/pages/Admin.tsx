@@ -66,6 +66,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
+import { cn } from '@/lib/utils'
 import { LOGO_URL } from '@/lib/constants'
 import {
   projectsService,
@@ -1063,6 +1064,14 @@ export default function Admin() {
                       <strong>Medidas:</strong>{' '}
                       {selectedOrder.dimensions || 'N/A'}
                     </p>
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <strong className="block mb-1">
+                        Observações Iniciais:
+                      </strong>
+                      <p className="text-muted-foreground whitespace-pre-wrap">
+                        {selectedOrder.notes || 'Nenhuma observação informada.'}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
