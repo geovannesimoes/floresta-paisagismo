@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Download,
   Package,
@@ -47,7 +47,43 @@ export default function AreaCliente() {
   const [profile, setProfile] = useState<CustomerProfile | null>(null)
   const [loadingProfile, setLoadingProfile] = useState(false)
 
+  // Keep track of currentOrder without adding to effect dependencies
+  const currentOrderRef = useRef(currentOrder)
   useEffect(() => {
+    currentOrderRef.current = currentOrder
+  }, [currentOrder])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadUserData = async () => {
+      if (!user?.email) return
+      if (isMounted) setLoadingProfile(true)
+
+      try {
+        // 1. Load Profile
+        const { data: profileData } = await authService.getProfile(user.id)
+        if (isMounted && profileData) setProfile(profileData)
+
+        // 2. Load Orders
+        const { data } = await ordersService.getOrdersByEmail(user.email)
+        if (isMounted && data && data.length > 0) {
+          setOrders(data)
+          // Auto select newest order if not selected
+          if (!currentOrderRef.current) {
+            const details = await ordersService.getOrderWithRelations(
+              data[0].id,
+            )
+            if (isMounted && details.data) setCurrentOrder(details.data)
+          }
+        }
+      } catch (e) {
+        console.error(e)
+      } finally {
+        if (isMounted) setLoadingProfile(false)
+      }
+    }
+
     if (user && user.email) {
       loadUserData()
     } else {
@@ -55,33 +91,11 @@ export default function AreaCliente() {
       setCurrentOrder(null)
       setProfile(null)
     }
-  }, [user])
 
-  const loadUserData = async () => {
-    if (!user?.email) return
-    setLoadingProfile(true)
-
-    try {
-      // 1. Load Profile
-      const { data: profileData } = await authService.getProfile(user.id)
-      if (profileData) setProfile(profileData)
-
-      // 2. Load Orders
-      const { data } = await ordersService.getOrdersByEmail(user.email)
-      if (data && data.length > 0) {
-        setOrders(data)
-        // Auto select newest order if not selected
-        if (!currentOrder) {
-          const details = await ordersService.getOrderWithRelations(data[0].id)
-          if (details.data) setCurrentOrder(details.data)
-        }
-      }
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setLoadingProfile(false)
+    return () => {
+      isMounted = false
     }
-  }
+  }, [user])
 
   const handleLegacyLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -267,7 +281,9 @@ export default function AreaCliente() {
       <ForcePasswordChange
         userId={user.id}
         onComplete={() =>
-          setProfile({ ...profile, must_change_password: false })
+          setProfile(
+            profile ? { ...profile, must_change_password: false } : null,
+          )
         }
       />
     )
