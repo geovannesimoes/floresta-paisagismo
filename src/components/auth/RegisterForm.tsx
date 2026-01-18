@@ -59,7 +59,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
       })
 
       if (error) {
-        // Handle Edge Function Custom Errors (409 Conflict)
+        // Pass through the specific error message from edge function
         if (error.message) {
           throw new Error(error.message)
         }
@@ -70,7 +70,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
       toast({
         title: 'Sucesso!',
         description:
-          'Conta criada com sucesso. Enviamos uma senha temporária para o seu e-mail.',
+          'Conta criada com sucesso. Verifique seu e-mail para obter sua senha temporária.',
         duration: 6000,
       })
 

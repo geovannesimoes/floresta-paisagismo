@@ -20,6 +20,7 @@ export const PLAN_DETAILS = {
       'Projeto (PDF/Imagem)',
       'Sugestão de plantas ideais',
       'Guia de manutenção básico',
+      'Lista de compras completa',
     ],
     description: 'O equilíbrio perfeito para transformar seu espaço.',
     marketing_features: [
@@ -40,6 +41,7 @@ export const PLAN_DETAILS = {
       'Sugestão de plantas ideais',
       'Guia de manutenção básico',
       'Guia detalhado de plantio',
+      'Lista de compras completa',
     ],
     description: 'Experiência premium e suporte dedicado.',
     marketing_features: [
@@ -62,6 +64,7 @@ export const DELIVERABLE_CATEGORIES = [
   'Sugestão de plantas ideais',
   'Guia de manutenção básico',
   'Guia detalhado de plantio',
+  'Lista de compras completa',
 ]
 
 // Maps display sections to their specific deliverable types
@@ -70,4 +73,5 @@ export const DELIVERABLE_SECTIONS = {
   'Sugestão de plantas': ['Sugestão de plantas ideais'],
   'Guia de manutenção básico': ['Guia de manutenção básico'],
   'Guia detalhado de plantio': ['Guia detalhado de plantio'],
+  'Lista de compras': ['Lista de compras completa'],
 }

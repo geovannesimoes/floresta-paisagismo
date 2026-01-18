@@ -60,12 +60,9 @@ export function LoginForm() {
       // Redirect happens automatically
     } catch (error: any) {
       setLoading(false)
-      // Check for specific error code or message indicating provider issues
-      // Status 400 is common for "Provider not enabled" or configuration errors
-      // or if the error message contains 'provider'
       console.error('Google Login Error:', error)
 
-      // Fallback check: if error message relates to provider availability
+      // Specific handling for "Provider not enabled" (Error 400)
       if (
         error.status === 400 ||
         error.message?.includes('not enabled') ||

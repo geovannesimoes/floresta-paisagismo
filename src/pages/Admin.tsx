@@ -124,10 +124,13 @@ export default function Admin() {
   const [deliverableCustomTitle, setDeliverableCustomTitle] = useState('')
 
   useEffect(() => {
-    if (user) {
+    // Ensuring user session is ready before loading data
+    if (user && !authLoading) {
       loadData()
+    } else if (!user && !authLoading) {
+      navigate('/admin/login')
     }
-  }, [user])
+  }, [user, authLoading, navigate])
 
   useEffect(() => {
     if (settings) {
@@ -1005,6 +1008,10 @@ export default function Admin() {
                     </p>
                     <p>
                       <strong>Email:</strong> {selectedOrder.client_email}
+                    </p>
+                    <p>
+                      <strong>WhatsApp:</strong>{' '}
+                      {selectedOrder.client_whatsapp || 'Não informado'}
                     </p>
                     <p>
                       <strong>Plano:</strong> Projeto{' '}

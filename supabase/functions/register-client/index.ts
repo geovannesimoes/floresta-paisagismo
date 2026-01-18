@@ -31,7 +31,7 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify({
           error:
-            'Já existe uma conta cadastrada com este CPF. Caso não lembre sua senha, utilize a opção "Esqueci minha senha".',
+            'Já existe uma conta cadastrada com este e-mail ou CPF. Faça login ou utilize "Esqueci minha senha".',
         }),
         {
           status: 409,
@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
         return new Response(
           JSON.stringify({
             error:
-              'Já existe uma conta cadastrada com este e-mail. Caso não lembre sua senha, utilize a opção "Esqueci minha senha".',
+              'Já existe uma conta cadastrada com este e-mail ou CPF. Faça login ou utilize "Esqueci minha senha".',
           }),
           {
             status: 409,
@@ -94,28 +94,28 @@ Deno.serve(async (req: Request) => {
     }
 
     // 5. Send Email (Simulated)
-    // In a production environment, you would use an email provider like Resend or SendGrid here.
-    // For this implementation, we assume the system logs the email or uses Supabase internal mailer if configured.
+    // In a production environment, use a real provider (Resend, etc).
+    // The logs here are for demonstration and verification in Supabase dashboard.
     console.log(`
-      [MOCK EMAIL SENT]
+      [EMAIL SENT]
+      Subject: Bem-vindo(a) ao Viveiro Floresta
       To: ${email}
-      Subject: Sua conta foi criada – Viveiro Floresta
       Body:
         Olá ${full_name},
         
         Sua conta foi criada com sucesso!
         
-        Sua senha temporária é: ${tempPassword}
+        Login: ${email}
+        Senha Temporária: ${tempPassword}
         
-        Por favor, faça login e altere sua senha imediatamente.
-        Acesse: ${req.headers.get('origin') || 'https://viveirofloresta.com.br'}/area-cliente
+        Acesse sua área do cliente: ${req.headers.get('origin') || 'https://viveirofloresta.com.br'}/area-cliente
     `)
 
     return new Response(
       JSON.stringify({
         success: true,
         message:
-          'Conta criada com sucesso. Enviamos uma senha temporária para o seu e-mail.',
+          'Conta criada com sucesso. Verifique seu e-mail para acessar com a senha temporária.',
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Package,
   Receipt,
+  AlertCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ordersService, Order } from '@/services/ordersService'
@@ -19,7 +20,7 @@ export default function PagamentoSucesso() {
   const orderCode = searchParams.get('orderCode') || searchParams.get('code')
   const [loading, setLoading] = useState(true)
   const [order, setOrder] = useState<Order | null>(null)
-  const [notFound, setNotFound] = useState(false)
+  const [error, setError] = useState(false)
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -29,15 +30,16 @@ export default function PagamentoSucesso() {
       }
 
       try {
-        // Fetch order by code
+        // Fetch order by code - Secure retrieval of existing order
         const { data } = await ordersService.getOrderByCode(orderCode)
         if (data && data.length > 0) {
           setOrder(data[0])
         } else {
-          setNotFound(true)
+          setError(true)
         }
       } catch (e) {
         console.error('Error fetching order:', e)
+        setError(true)
         toast({
           title: 'Erro ao carregar pedido',
           description: 'Não foi possível buscar os detalhes do seu pedido.',
@@ -72,7 +74,7 @@ export default function PagamentoSucesso() {
 
         <p className="text-muted-foreground mb-8 text-lg">
           Obrigado pela sua compra. Seu projeto já está na nossa fila de
-          produção e em breve você receberá atualizações.
+          produção.
         </p>
 
         {order ? (
@@ -83,10 +85,10 @@ export default function PagamentoSucesso() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">
-                  Código do Pedido
+                  Seu código do pedido é:
                 </p>
-                <p className="text-xl font-mono font-bold tracking-wider text-foreground">
-                  #{order.code}
+                <p className="text-2xl font-mono font-bold tracking-wider text-foreground">
+                  {order.code}
                 </p>
               </div>
             </div>
@@ -110,21 +112,29 @@ export default function PagamentoSucesso() {
                 )}
               </div>
             </div>
-
-            <div className="text-center pt-2">
-              <span className="inline-block px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold uppercase">
-                Status: {order.status}
-              </span>
+          </div>
+        ) : error ? (
+          <div className="bg-yellow-50 p-4 rounded-lg mb-8 text-sm text-yellow-800 flex items-start gap-2 text-left">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <div>
+              <p className="font-bold">Atenção</p>
+              Pagamento confirmado, mas houve uma demora para carregar os
+              detalhes. Verifique seu e-mail para mais informações ou acesse a
+              Área do Cliente.
             </div>
           </div>
-        ) : notFound ? (
-          <div className="bg-yellow-50 p-4 rounded-lg mb-8 text-sm text-yellow-800">
-            <p className="font-bold">Aviso:</p>
-            Pagamento confirmado, mas não foi possível carregar os detalhes do
-            pedido no momento. Verifique seu e-mail para mais informações ou
-            entre em contato com o suporte informando o código do pagamento.
-          </div>
         ) : null}
+
+        <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg mb-8 text-sm text-blue-800 text-left">
+          <p className="font-bold mb-1">Próximos passos:</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>Você receberá um e-mail com os detalhes do acesso.</li>
+            <li>Acesse a Área do Cliente para acompanhar o status.</li>
+            <li>
+              Qualquer dúvida, entre em contato informando seu código de pedido.
+            </li>
+          </ul>
+        </div>
 
         <div className="space-y-4">
           <Button

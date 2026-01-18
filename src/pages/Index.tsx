@@ -291,7 +291,7 @@ export default function Index() {
                     R$ {(plan.price_cents / 100).toFixed(2).replace('.', ',')}
                   </div>
                   <ul className="space-y-2 mb-6 text-sm opacity-90 flex-grow">
-                    {/* Show ALL features as per requirement, no slice */}
+                    {/* Show ALL features as per requirement */}
                     {plan.features?.map((feature, i) => (
                       <li key={i} className="flex items-start gap-2">
                         <Check className="h-4 w-4 shrink-0 mt-0.5 text-accent" />
