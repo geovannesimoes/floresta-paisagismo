@@ -111,10 +111,10 @@ export default function Index() {
             <Carousel
               opts={{
                 loop: true,
-                duration: 60, // Smooth slide
+                duration: 60, // Kept for consistency, though standard Embla usage relies on physics
                 watchDrag: false,
               }}
-              plugins={[Autoplay({ delay: 3500, stopOnInteraction: false })]}
+              plugins={[Autoplay({ delay: 6000, stopOnInteraction: false })]}
               className="w-full h-full"
             >
               <CarouselContent className="h-[90vh] ml-0">
